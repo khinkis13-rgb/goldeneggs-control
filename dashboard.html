@@ -186,14 +186,15 @@
 
   /* Карточка одного файла (для обложки) */
   .file-card{display:flex;gap:12px;align-items:center;padding:8px;background:var(--bg2);border:1px solid var(--line);border-radius:12px;position:relative;margin-bottom:8px}
-  .file-card .fc-thumb{flex:0 0 auto;width:64px;height:64px;border-radius:8px;overflow:hidden;background:#000;display:block}
+  .file-card .fc-thumb-wrap{position:relative;flex:0 0 auto;width:64px;height:64px}
+  .file-card .fc-thumb{display:block;width:100%;height:100%;border-radius:8px;overflow:hidden;background:#000}
   .file-card .fc-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-  .file-card .fc-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .file-card .fc-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;padding-right:4px}
   .file-card .fc-name{font-size:14px;color:var(--cream);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .file-card .fc-size{font-size:12px;color:var(--muted)}
   .file-card .fc-size.warn{color:var(--warn)}
-  .file-card .cp-del{position:relative;top:auto;right:auto;flex:0 0 auto;width:28px;height:28px;background:transparent;border:1px solid var(--line);color:var(--muted)}
-  .file-card .cp-del:hover{background:var(--danger);color:#1b160c;border-color:var(--danger)}
+  .file-card .fc-thumb-wrap .cp-del{position:absolute;top:3px;right:3px;width:22px;height:22px;background:rgba(0,0,0,.75);color:#fff;border:none;display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;border-radius:50%;padding:0;line-height:1;z-index:3;transition:.15s}
+  .file-card .fc-thumb-wrap .cp-del:hover{background:var(--danger);color:#1b160c}
 
   /* Ручная ссылка (свёрнутый блок) */
   .manual-link{margin-top:8px}
@@ -761,12 +762,14 @@ function renderCoverPreview(value){
   const sz = fmtSize(it.size);
   const warn = sizeWarn(it.size);
   return `<div class="file-card">
-    <a class="fc-thumb" href="${escape(it.url)}" target="_blank" rel="noopener" title="Открыть в Drive"><img src="${escape(prev)}" loading="lazy" onerror="this.parentElement.style.background='#222'"></a>
+    <span class="fc-thumb-wrap">
+      <a class="fc-thumb" href="${escape(it.url)}" rel="noopener" title="Открыть превью"><img src="${escape(prev)}" loading="lazy" onerror="this.parentElement.style.background='#222'"></a>
+      <button class="cp-del" data-cp-del title="Убрать обложку">✕</button>
+    </span>
     <div class="fc-info">
       <div class="fc-name" title="${escape(name)}">${escape(name)}</div>
       <div class="fc-size ${warn?'warn':''}">${escape(sz)}${warn?` · ${escape(warn)}`:""}</div>
     </div>
-    <button class="cp-del" data-cp-del title="Убрать обложку">✕</button>
   </div>`;
 }
 
