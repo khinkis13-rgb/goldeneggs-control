@@ -624,15 +624,20 @@ function postCard(p){
 
     <div>
       <div class="small" style="margin-bottom:4px">🖼 Обложка (главное изображение)</div>
-      <input type="url" data-field="cover" data-id="${p.id}" value="${escape(p.cover||"")}" placeholder="https://drive.google.com/file/d/.../view">
       <div id="cover-preview-${p.id}">${renderCoverPreview(p.cover)}</div>
+      <details class="manual-link" ${p.cover?"":"open"}>
+        <summary>${p.cover?"🔗 Изменить ссылку вручную":"➕ Вставить ссылку на обложку"}</summary>
+        <input type="url" data-field="cover" data-id="${p.id}" value="${escape(p.cover||"")}" placeholder="https://drive.google.com/file/d/.../view">
+      </details>
     </div>
 
     <div>
-      <div class="small" style="margin-bottom:4px">📎 Картинки и видео — по одной ссылке на строку</div>
-      <textarea data-field="media" data-id="${p.id}" rows="2" placeholder="https://drive.google.com/file/d/.../view&#10;вторая ссылка...">${escape(p.media||"")}</textarea>
+      <div class="small" style="margin-bottom:4px">📎 Картинки и видео</div>
       <div id="media-preview-${p.id}">${renderMediaPreview(parseMediaList(p.media))}</div>
-      <div class="field-hint">Загрузите файл в Google Drive → правой кнопкой «Поделиться» → «Доступ для всех, у кого есть ссылка» → скопируйте ссылку → вставьте сюда. Можно несколько (каждая на новой строке) — для карусели или сториз.</div>
+      <details class="manual-link" ${p.media?"":"open"}>
+        <summary>${p.media?"🔗 Изменить ссылки вручную":"➕ Вставить ссылки на картинки/видео"}</summary>
+        <textarea data-field="media" data-id="${p.id}" rows="2" placeholder="https://drive.google.com/file/d/.../view&#10;вторая ссылка — для карусели">${escape(p.media||"")}</textarea>
+      </details>
     </div>
 
     <div>
@@ -1790,6 +1795,19 @@ function parsePreviewId(elId, prefix){
   if(!m) return null;
   return {postId: m[1], sufx: m[2] || ""};
 }
+function syncManualLinkAfterDelete(el, kind, hasValue){
+  const det = el && el.closest("details.manual-link");
+  if(!det) return;
+  if(!hasValue) det.open = true;
+  const sum = det.querySelector("summary");
+  if(sum){
+    if(hasValue){
+      sum.textContent = kind === "cover" ? "🔗 Изменить ссылку вручную" : "🔗 Изменить ссылки вручную";
+    } else {
+      sum.textContent = kind === "cover" ? "➕ Вставить ссылку на обложку" : "➕ Вставить ссылки на картинки/видео";
+    }
+  }
+}
 async function removeMediaAt(postId, sufx, idx){
   const p = state.posts[postId]; if(!p) return;
   const field = "media" + (sufx||"");
@@ -1800,6 +1818,7 @@ async function removeMediaAt(postId, sufx, idx){
   saveState();
   const ta = document.querySelector(`textarea[data-field="${field}"][data-id="${postId}"]`);
   if(ta) ta.value = p[field];
+  syncManualLinkAfterDelete(ta, "media", !!p[field]);
   refreshPreviewImmediate(postId, "media", p[field], sufx||"");
   const ri = rowIndexOf(p); if(ri) pushField(ri, field, p[field], 0);
   updateAnyaProgressLight();
@@ -1812,6 +1831,7 @@ async function removeCover(postId, sufx){
   saveState();
   const inp = document.querySelector(`input[data-field="${field}"][data-id="${postId}"]`);
   if(inp) inp.value = "";
+  syncManualLinkAfterDelete(inp, "cover", false);
   refreshPreviewImmediate(postId, "cover", "", sufx||"");
   const ri = rowIndexOf(p); if(ri) pushField(ri, field, "", 0);
   updateAnyaProgressLight();
