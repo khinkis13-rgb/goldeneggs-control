@@ -154,7 +154,7 @@
   .platform-chip:hover{border-color:var(--gold-dim)}
 
   /* UPLOADER (drop-зона + клик для выбора) */
-  .uploader{position:relative;border:2px dashed var(--line);border-radius:12px;padding:22px 18px;text-align:center;cursor:pointer;transition:.15s;background:var(--bg2);user-select:none}
+  .uploader{position:relative;border:2px dashed var(--line);border-radius:12px;padding:22px 18px;text-align:center;cursor:pointer;transition:.15s;background:var(--bg2);user-select:none;min-height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center}
   .uploader:hover{border-color:var(--gold-dim);background:rgba(230,184,100,.04)}
   .uploader.drag-over{border-color:var(--gold);background:rgba(230,184,100,.1)}
   .uploader.drag-over .uploader-title{color:var(--gold)}
@@ -162,9 +162,27 @@
   .uploader-title{font-size:14px;color:var(--cream);font-weight:600;margin-bottom:4px}
   .uploader-sub{font-size:12px;color:var(--muted)}
   .uploader-sub b{color:var(--gold);font-weight:600}
-  .uploader.uploading{pointer-events:none;opacity:.85}
-  .uploader-status{margin-top:8px;font-size:12px;color:var(--gold);display:none}
-  .uploader.uploading .uploader-status{display:block}
+  .uploader.uploading{pointer-events:none;border-color:var(--gold);background:rgba(230,184,100,.08);border-style:solid}
+  .uploader.uploading .uploader-icon,
+  .uploader.uploading .uploader-title,
+  .uploader.uploading .uploader-sub{display:none}
+  .uploader-status{display:none;flex-direction:column;align-items:center;gap:10px;color:var(--gold)}
+  .uploader.uploading .uploader-status{display:flex}
+  .uploader-status .spinner{width:30px;height:30px;border:3px solid rgba(230,184,100,.25);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
+  .uploader-status .us-name{color:var(--cream);font-weight:600;font-size:14px}
+  .uploader-status .us-prog{color:var(--muted);font-size:12px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* Ghost-плитка для загружающегося файла */
+  .mp-item.ghost,.file-card.ghost{position:relative;background:var(--bg2);border:1px solid var(--gold-dim);display:flex;align-items:center;justify-content:center;color:var(--gold);font-size:11px;padding:10px;animation:pulse 1.4s ease-in-out infinite}
+  .mp-item.ghost{aspect-ratio:1;flex-direction:column;gap:6px}
+  .mp-item.ghost .spinner-sm{width:22px;height:22px;border:2px solid rgba(230,184,100,.25);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
+  .mp-item.ghost .gh-name{color:var(--cream);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .file-card.ghost{padding:16px;gap:12px;justify-content:flex-start}
+  .file-card.ghost .spinner-sm{width:30px;height:30px;border:3px solid rgba(230,184,100,.25);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;flex:0 0 auto}
+  .file-card.ghost .gh-name{color:var(--cream);font-weight:600;font-size:14px}
+  .file-card.ghost .gh-sub{color:var(--muted);font-size:12px;margin-top:2px}
+  @keyframes pulse{0%,100%{opacity:.65}50%{opacity:1}}
 
   /* Карточка одного файла (для обложки) */
   .file-card{display:flex;gap:12px;align-items:center;padding:8px;background:var(--bg2);border:1px solid var(--line);border-radius:12px;position:relative;margin-bottom:8px}
@@ -216,6 +234,8 @@
   .lb-info .lb-size{color:var(--muted);font-size:12px}
   .lb-info a{color:var(--gold);text-decoration:none;font-size:12px}
   .lb-info a:hover{text-decoration:underline}
+  .lb-action{background:transparent;border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:99px;padding:4px 12px;font-size:12px;cursor:pointer;transition:.15s;font-family:inherit}
+  .lb-action:hover{background:var(--danger);color:#1b160c;border-color:var(--danger)}
   .lb-counter{position:absolute;top:16px;left:18px;background:rgba(0,0,0,.7);padding:6px 14px;border-radius:99px;color:var(--gold);font-size:13px;font-weight:600}
   .lb-spinner{color:var(--gold);font-size:14px}
 
@@ -936,6 +956,13 @@ function renderAll(){
 }
 
 /* ===== UPLOADER blocks (DRY) ===== */
+const UPLOADER_STATUS_HTML = `
+  <div class="uploader-status">
+    <div class="spinner"></div>
+    <div class="us-name">Загружаем…</div>
+    <div class="us-prog"></div>
+  </div>
+`;
 function uploaderCover(postId, sufx, value, label){
   const hasFile = !!parseMediaUrl(value);
   const sufxAttr = sufx || "";
@@ -946,7 +973,7 @@ function uploaderCover(postId, sufx, value, label){
       <div class="uploader-icon">⬆</div>
       <div class="uploader-title">${hasFile?"Заменить файл":"Перетащите файл сюда"}</div>
       <div class="uploader-sub">или <b>нажмите чтобы выбрать</b> с компьютера · JPG / PNG / MP4 · до 50 МБ</div>
-      <div class="uploader-status">⏳ Загрузка…</div>
+      ${UPLOADER_STATUS_HTML}
     </div>
     <details class="manual-link">
       <summary>Или вставить ссылку на Drive вручную</summary>
@@ -964,13 +991,27 @@ function uploaderMedia(postId, sufx, value, label){
       <div class="uploader-icon">⬆</div>
       <div class="uploader-title">${items.length?"Добавить ещё":"Перетащите файлы сюда"}</div>
       <div class="uploader-sub">или <b>нажмите чтобы выбрать</b> · можно сразу несколько · до 50 МБ каждый</div>
-      <div class="uploader-status">⏳ Загрузка…</div>
+      ${UPLOADER_STATUS_HTML}
     </div>
     <details class="manual-link">
       <summary>Или вставить ссылки вручную (по одной на строку)</summary>
       <textarea data-field="media${sufxAttr}" data-id="${postId}" rows="2" placeholder="https://drive.google.com/file/d/.../view">${escape(value||"")}</textarea>
     </details>
   `;
+}
+
+/* Ghost-плитка в превью на время загрузки (чтобы было видно, что файл подхватился) */
+function ghostMediaItem(file){
+  const el = document.createElement("div");
+  el.className = "mp-item ghost";
+  el.innerHTML = `<div class="spinner-sm"></div><div class="gh-name" title="${escape(file.name)}">${escape(file.name)}</div>`;
+  return el;
+}
+function ghostCoverCard(file){
+  const el = document.createElement("div");
+  el.className = "file-card ghost";
+  el.innerHTML = `<div class="spinner-sm"></div><div><div class="gh-name">${escape(file.name)}</div><div class="gh-sub">${escape(fmtSize(file.size)||"")} · загружаем в Drive…</div></div>`;
+  return el;
 }
 
 /* ANYA — focus mode */
@@ -1464,7 +1505,7 @@ $("#btnReset").addEventListener("click", () => {
 });
 
 /* ===== LIGHTBOX ===== */
-let _lb = {items:[], idx:0};
+let _lb = {items:[], idx:0, ctx:null};
 function bigPreviewUrl(rawUrl){
   const u = String(rawUrl||"").trim().split("#")[0];
   if(!u) return null;
@@ -1476,8 +1517,8 @@ function bigPreviewUrl(rawUrl){
 function isVideoUrl(rawUrl){
   return /\.(mp4|webm|mov|m4v)(#|$|\?)/i.test(String(rawUrl||"").split("#")[0]);
 }
-function openLightbox(items, idx){
-  _lb = {items: items.filter(it => bigPreviewUrl(it.url)), idx: 0};
+function openLightbox(items, idx, ctx){
+  _lb = {items: items.filter(it => bigPreviewUrl(it.url)), idx: 0, ctx: ctx || null};
   if(!_lb.items.length) return;
   _lb.idx = Math.max(0, Math.min(idx||0, _lb.items.length-1));
   $("#lightbox").classList.add("show");
@@ -1498,6 +1539,7 @@ function renderLightbox(){
        <button class="lb-nav lb-next" data-lb-next title="Вперёд (→)">›</button>
        <div class="lb-counter">${_lb.idx+1} / ${_lb.items.length}</div>`
     : "";
+  const delBtn = _lb.ctx ? `<button class="lb-action" data-lb-delete title="Убрать из поста (файл в Drive останется)">🗑 Удалить</button>` : "";
   stage.innerHTML = `
     <button class="lb-close" data-lb-close title="Закрыть (Esc)">✕</button>
     ${nav}
@@ -1505,21 +1547,41 @@ function renderLightbox(){
     <div class="lb-info">
       <span class="lb-name">${escape(name)}</span>
       ${sz?`<span class="lb-size">${escape(sz)}</span>`:""}
-      <a href="${escape(it.url)}" target="_blank" rel="noopener">↗ Открыть оригинал</a>
+      <a href="${escape(it.url)}" target="_blank" rel="noopener">↗ Оригинал</a>
+      ${delBtn}
     </div>
   `;
 }
-function closeLightbox(){ $("#lightbox").classList.remove("show"); $("#lbStage").innerHTML = ""; }
+function closeLightbox(){ $("#lightbox").classList.remove("show"); $("#lbStage").innerHTML = ""; _lb.ctx = null; }
 function lbNext(){ if(!_lb.items.length) return; _lb.idx = (_lb.idx+1) % _lb.items.length; renderLightbox(); }
 function lbPrev(){ if(!_lb.items.length) return; _lb.idx = (_lb.idx-1+_lb.items.length) % _lb.items.length; renderLightbox(); }
+async function lbDelete(){
+  const ctx = _lb.ctx; if(!ctx){ alert("Не из этого окна — удалите через крестик на превью."); return; }
+  if(!confirm("Убрать эту картинку из поста? Файл в Drive останется — можно вернуть.")) return;
+  if(ctx.kind === "cover"){
+    await removeCover(ctx.postId, ctx.sufx);
+    closeLightbox();
+  } else {
+    const realIdx = _lb.idx;
+    await removeMediaAt(ctx.postId, ctx.sufx, realIdx);
+    _lb.items.splice(_lb.idx, 1);
+    if(!_lb.items.length){ closeLightbox(); return; }
+    _lb.idx = Math.min(_lb.idx, _lb.items.length-1);
+    renderLightbox();
+  }
+}
 
 document.addEventListener("click", e => {
   if(e.target.closest("[data-lb-close]")){ closeLightbox(); return; }
   if(e.target.closest("[data-lb-prev]")){ lbPrev(); return; }
   if(e.target.closest("[data-lb-next]")){ lbNext(); return; }
-  // Клик по фону lightbox (вне изображения) закрывает
+  if(e.target.closest("[data-lb-delete]")){ lbDelete(); return; }
+  // Клик по фону lightbox (везде, кроме самого изображения и UI-элементов) закрывает
   const lb = document.getElementById("lightbox");
-  if(lb && lb.classList.contains("show") && e.target === lb) closeLightbox();
+  if(lb && lb.classList.contains("show")){
+    if(e.target.closest("img, video, .lb-info, .lb-nav, .lb-close, .lb-counter, a")) return;
+    if(e.target.closest("#lightbox")) closeLightbox();
+  }
 }, false);
 
 document.addEventListener("keydown", e => {
@@ -1536,18 +1598,26 @@ document.addEventListener("click", e => {
   const mp = e.target.closest(".mp-item, .pm-mi, .file-card .fc-thumb");
   if(!mp) return;
   e.preventDefault();
+  // Определяем контекст (postId + поле) — для удаления из lightbox
+  const previewBox = mp.closest('[id^="media-preview-"], [id^="cover-preview-"]');
+  let ctx = null;
+  if(previewBox){
+    const prefix = previewBox.id.startsWith("media-preview-") ? "media-preview-" : "cover-preview-";
+    const info = parsePreviewId(previewBox.id, prefix);
+    if(info) ctx = {postId: info.postId, sufx: info.sufx, kind: prefix === "media-preview-" ? "media" : "cover"};
+  }
   // Собираем список — все плитки из того же контейнера, чтобы листать.
   const container = mp.closest(".media-preview, .pm-media-grid");
   if(container){
     const all = Array.from(container.querySelectorAll(".mp-item, .pm-mi"));
     const items = all.map(a => parseMediaUrl(a.getAttribute("href")));
     const idx = all.indexOf(mp);
-    openLightbox(items, idx);
+    openLightbox(items, idx, ctx);
   } else {
     // Обложка — одна
     const a = mp.closest(".file-card") && mp.closest(".file-card").querySelector(".fc-thumb");
     const href = (a||mp).getAttribute("href");
-    openLightbox([parseMediaUrl(href)], 0);
+    openLightbox([parseMediaUrl(href)], 0, ctx);
   }
 }, true);
 
@@ -1586,20 +1656,58 @@ async function ingestFiles(files, postId, kind /* "cover"|"media" */, sufx, uplo
   files = Array.from(files||[]); if(!files.length) return;
   const p = state.posts[postId]; if(!p){ alert("Не нашёл пост"); return; }
   const fieldName = kind + (sufx||"");
+  const previewBoxId = (kind === "cover" ? "cover-preview-" : "media-preview-") + postId + (sufx||"");
+  const previewBox = document.getElementById(previewBoxId);
+
+  // Ставим ghost-плитки сразу — чтобы Аня видела, что файлы подхватились
+  const ghosts = [];
+  if(previewBox){
+    if(kind === "cover"){
+      // Для cover показываем одну ghost-карточку, заменяя текущий контент превью
+      const g = ghostCoverCard(files[0]);
+      previewBox.innerHTML = "";
+      previewBox.appendChild(g);
+      ghosts.push(g);
+    } else {
+      // Для media — добавляем все ghost-плитки в существующую сетку
+      let grid = previewBox.querySelector(".media-preview");
+      if(!grid){
+        grid = document.createElement("div");
+        grid.className = "media-preview";
+        previewBox.innerHTML = "";
+        previewBox.appendChild(grid);
+      }
+      files.forEach(file => {
+        const g = ghostMediaItem(file);
+        grid.appendChild(g);
+        ghosts.push(g);
+      });
+    }
+  }
+
   if(uploaderEl){
     uploaderEl.classList.add("uploading");
-    const status = uploaderEl.querySelector(".uploader-status");
-    if(status) status.textContent = "⏳ Загрузка…";
+    const nameEl = uploaderEl.querySelector(".us-name");
+    const progEl = uploaderEl.querySelector(".us-prog");
+    if(nameEl) nameEl.textContent = files[0].name;
+    if(progEl) progEl.textContent = files.length>1 ? `1 / ${files.length}` : "загружаем в Drive…";
   }
+
   try{
     for(let i=0;i<files.length;i++){
       const file = files[i];
       if(uploaderEl){
-        const status = uploaderEl.querySelector(".uploader-status");
-        if(status) status.textContent = `⏳ ${i+1}/${files.length} · ${file.name}`;
+        const nameEl = uploaderEl.querySelector(".us-name");
+        const progEl = uploaderEl.querySelector(".us-prog");
+        if(nameEl) nameEl.textContent = file.name;
+        if(progEl) progEl.textContent = files.length>1 ? `${i+1} / ${files.length}` : "загружаем в Drive…";
       }
       const rawUrl = await uploadFileToDrive(file);
-      if(!rawUrl) continue;
+      if(!rawUrl){
+        // отмена через confirm — убираем ghost
+        if(ghosts[i] && ghosts[i].parentNode) ghosts[i].remove();
+        continue;
+      }
       const url = withMeta(rawUrl, file.name, file.size);
       if(kind === "cover"){
         p[fieldName] = url;
@@ -1613,17 +1721,33 @@ async function ingestFiles(files, postId, kind /* "cover"|"media" */, sufx, uplo
       }
       saveState();
       const ri = rowIndexOf(p); if(ri) pushField(ri, fieldName, p[fieldName], 0);
-      refreshPreview(p.id, kind, p[fieldName], sufx||"");
     }
+    // Полный refresh превью — заменит все ghost-плитки реальными
+    refreshPreviewImmediate(p.id, kind, p[fieldName], sufx||"");
     flash("Загружено в Drive");
     updateAnyaProgressLight();
     // Перерисуем фокус-карточку, чтобы обновить заголовки и кнопку «Готов»
     if(state.activeTab === "anya" && state.anyaCurrentId === postId) renderAnya();
   } catch(err){
+    // При ошибке убираем ghost'ы, чтобы не висели
+    ghosts.forEach(g => g.parentNode && g.remove());
+    refreshPreviewImmediate(p.id, kind, p[fieldName], sufx||"");
     alert("Не удалось загрузить: " + err.message);
     setConn("⚠ "+err.message,"red");
   } finally {
     if(uploaderEl) uploaderEl.classList.remove("uploading");
+  }
+}
+
+/* Немедленный (без debounce) refresh превью — нужен после загрузки, чтобы убрать ghost'ы */
+function refreshPreviewImmediate(id, kind, value, sufx){
+  const suff = sufx || "";
+  if(kind === "media"){
+    const el = document.getElementById("media-preview-"+id+suff);
+    if(el) el.innerHTML = renderMediaPreview(parseMediaList(value));
+  } else if(kind === "cover"){
+    const el = document.getElementById("cover-preview-"+id+suff);
+    if(el) el.innerHTML = renderCoverPreview(value);
   }
 }
 
