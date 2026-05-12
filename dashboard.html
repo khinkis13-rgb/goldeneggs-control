@@ -1792,7 +1792,7 @@ async function removeMediaAt(postId, sufx, idx){
   saveState();
   const ta = document.querySelector(`textarea[data-field="${field}"][data-id="${postId}"]`);
   if(ta) ta.value = p[field];
-  refreshPreview(postId, "media", p[field], sufx||"");
+  refreshPreviewImmediate(postId, "media", p[field], sufx||"");
   const ri = rowIndexOf(p); if(ri) pushField(ri, field, p[field], 0);
   updateAnyaProgressLight();
   flash("Картинка убрана из поста");
@@ -1804,7 +1804,7 @@ async function removeCover(postId, sufx){
   saveState();
   const inp = document.querySelector(`input[data-field="${field}"][data-id="${postId}"]`);
   if(inp) inp.value = "";
-  refreshPreview(postId, "cover", "", sufx||"");
+  refreshPreviewImmediate(postId, "cover", "", sufx||"");
   const ri = rowIndexOf(p); if(ri) pushField(ri, field, "", 0);
   updateAnyaProgressLight();
   flash("Обложка убрана");
@@ -1812,7 +1812,7 @@ async function removeCover(postId, sufx){
 document.addEventListener("click", e => {
   const del = e.target.closest("[data-mp-del], [data-cp-del]");
   if(!del) return;
-  e.preventDefault(); e.stopPropagation();
+  e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
   if(del.hasAttribute("data-mp-del")){
     const container = del.closest('[id^="media-preview-"]');
     if(!container) return;
