@@ -98,17 +98,16 @@
   .progress > div{height:100%;background:linear-gradient(90deg,var(--gold-dim),var(--gold));transition:.3s}
 
   /* media preview */
-  .media-preview{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px;margin-top:8px}
-  .media-preview .mp-item{position:relative;aspect-ratio:1;background:var(--bg2);border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;text-align:center;padding:6px;text-decoration:none}
-  .media-preview .mp-item img{width:100%;height:100%;object-fit:cover;display:block}
+  .media-preview{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin:8px 0}
+  .media-preview .mp-item{position:relative;background:var(--bg2);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;color:var(--muted);font-size:11px;text-decoration:none;transition:.15s}
+  .media-preview .mp-item img{width:100%;aspect-ratio:1;object-fit:cover;display:block;background:#000}
   .media-preview .mp-item:hover{border-color:var(--gold-dim)}
-  .media-preview .mp-item .mp-num{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.6);color:var(--gold);font-size:10px;padding:1px 6px;border-radius:99px;font-weight:600}
-  .mp-del,.cp-del{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.65);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;cursor:pointer;border:none;padding:0;z-index:3;transition:.15s}
+  .media-preview .mp-item .mp-num{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.6);color:var(--gold);font-size:10px;padding:1px 6px;border-radius:99px;font-weight:600;z-index:2}
+  .media-preview .mp-item .mp-caption{padding:6px 8px;font-size:11px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3}
+  .media-preview .mp-item .mp-sz{color:var(--muted)}
+  .media-preview .mp-item .mp-sz.warn{color:var(--warn)}
+  .mp-del,.cp-del{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.7);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;cursor:pointer;border:none;padding:0;z-index:3;transition:.15s}
   .mp-del:hover,.cp-del:hover{background:var(--danger);color:#1b160c}
-  .cover-preview{margin-top:8px;position:relative;display:inline-block}
-  .cover-preview a{display:inline-block;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
-  .cover-preview a:hover{border-color:var(--gold-dim)}
-  .cover-preview img{display:block;max-width:200px;max-height:200px;object-fit:cover}
   .field-hint{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.45}
 
   /* modal */
@@ -154,15 +153,34 @@
   .platform-chip.on{border-color:var(--gold-dim);color:var(--gold);background:rgba(230,184,100,.08)}
   .platform-chip:hover{border-color:var(--gold-dim)}
 
-  /* DROPZONE */
-  .dropzone{position:relative;border-radius:10px;border:2px dashed transparent;transition:.15s;padding:0}
-  .dropzone .dz-hint{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(230,184,100,.15);color:var(--gold);font-weight:600;border-radius:8px;pointer-events:none;font-size:14px}
-  .dropzone.drag-over{border-color:var(--gold)}
-  .dropzone.drag-over .dz-hint{display:flex}
-  .dz-uploading{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.7);color:var(--gold);padding:3px 10px;border-radius:99px;font-size:11px;display:none}
-  .dropzone.uploading .dz-uploading{display:inline-block}
-  .dz-pick{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:6px 10px;background:var(--bg2);border:1px solid var(--line);color:var(--cream);border-radius:8px;cursor:pointer;font-size:13px}
-  .dz-pick:hover{border-color:var(--gold-dim);color:var(--gold)}
+  /* UPLOADER (drop-зона + клик для выбора) */
+  .uploader{position:relative;border:2px dashed var(--line);border-radius:12px;padding:22px 18px;text-align:center;cursor:pointer;transition:.15s;background:var(--bg2);user-select:none}
+  .uploader:hover{border-color:var(--gold-dim);background:rgba(230,184,100,.04)}
+  .uploader.drag-over{border-color:var(--gold);background:rgba(230,184,100,.1)}
+  .uploader.drag-over .uploader-title{color:var(--gold)}
+  .uploader-icon{font-size:28px;line-height:1;margin-bottom:10px;color:var(--gold-dim)}
+  .uploader-title{font-size:14px;color:var(--cream);font-weight:600;margin-bottom:4px}
+  .uploader-sub{font-size:12px;color:var(--muted)}
+  .uploader-sub b{color:var(--gold);font-weight:600}
+  .uploader.uploading{pointer-events:none;opacity:.85}
+  .uploader-status{margin-top:8px;font-size:12px;color:var(--gold);display:none}
+  .uploader.uploading .uploader-status{display:block}
+
+  /* Карточка одного файла (для обложки) */
+  .file-card{display:flex;gap:12px;align-items:center;padding:8px;background:var(--bg2);border:1px solid var(--line);border-radius:12px;position:relative;margin-bottom:8px}
+  .file-card .fc-thumb{flex:0 0 auto;width:64px;height:64px;border-radius:8px;overflow:hidden;background:#000;display:block}
+  .file-card .fc-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .file-card .fc-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .file-card .fc-name{font-size:14px;color:var(--cream);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .file-card .fc-size{font-size:12px;color:var(--muted)}
+  .file-card .fc-size.warn{color:var(--warn)}
+  .file-card .cp-del{position:relative;top:auto;right:auto;flex:0 0 auto;width:28px;height:28px;background:transparent;border:1px solid var(--line);color:var(--muted)}
+  .file-card .cp-del:hover{background:var(--danger);color:#1b160c;border-color:var(--danger)}
+
+  /* Ручная ссылка (свёрнутый блок) */
+  .manual-link{margin-top:8px}
+  .manual-link summary{font-size:12px;color:var(--muted);padding:4px 0}
+  .manual-link input,.manual-link textarea{margin-top:6px;font-size:13px}
 
   /* ANYA focus mode */
   .anya-progress{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:14px}
@@ -614,31 +632,103 @@ function extractDriveId(url){
   return m && (m[1]||m[2]||m[3]);
 }
 function mediaPreviewUrl(url){
-  const u = String(url||"").trim();
+  const u = String(url||"").trim().split("#")[0];
   if(!u) return null;
   const id = extractDriveId(u);
   if(id) return `https://drive.google.com/thumbnail?id=${id}&sz=w400`;
   if(/^https?:\/\/.+\.(jpe?g|png|gif|webp|avif|bmp)(\?.*)?$/i.test(u)) return u;
   return null;
 }
+/* Метаданные файла (имя, размер) хранятся в URL fragment: ...#n=name&s=12345
+   Sheets/Drive хранят полный URL, fragment Drive игнорирует — обратно совместимо. */
+function parseMediaUrl(raw){
+  if(!raw) return null;
+  const u = String(raw).trim();
+  if(!u) return null;
+  const out = {url:u, name:"", size:0};
+  const hi = u.indexOf("#");
+  if(hi > 0){
+    u.slice(hi+1).split("&").forEach(kv => {
+      const i = kv.indexOf("=");
+      const k = i>=0 ? kv.slice(0,i) : kv;
+      const v = i>=0 ? kv.slice(i+1) : "";
+      if(k === "n"){ try { out.name = decodeURIComponent(v.replace(/\+/g," ")); } catch(_){ out.name = v; } }
+      if(k === "s"){ out.size = parseInt(v,10)||0; }
+    });
+  }
+  return out;
+}
+function withMeta(url, name, size){
+  if(!url) return "";
+  const base = String(url).split("#")[0];
+  const parts = [];
+  if(name) parts.push("n=" + encodeURIComponent(name));
+  if(size) parts.push("s=" + size);
+  return parts.length ? (base + "#" + parts.join("&")) : base;
+}
+function fmtSize(bytes){
+  if(!bytes || bytes<=0) return "";
+  if(bytes < 1024) return bytes + " Б";
+  if(bytes < 1024*1024) return Math.round(bytes/1024) + " КБ";
+  return (bytes/1024/1024).toFixed(bytes < 10*1024*1024 ? 1 : 0) + " МБ";
+}
+function fileLabel(item){
+  // item — объект из parseMediaUrl
+  if(!item) return "";
+  if(item.name) return item.name;
+  const id = extractDriveId(item.url);
+  return id ? "Файл из Drive" : "Внешняя ссылка";
+}
+function sizeWarn(bytes){
+  // подсказка «норм / тяжеловат» для Аниного восприятия
+  if(!bytes) return "";
+  if(bytes > 30*1024*1024) return "⚠ очень тяжёлый";
+  if(bytes > 10*1024*1024) return "тяжеловат";
+  return "";
+}
 function parseMediaList(s){
-  return String(s||"").split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  return String(s||"").split(/\n+/).map(x=>x.trim()).filter(Boolean).map(parseMediaUrl);
+}
+function serializeMediaList(items){
+  return (items||[]).map(it => typeof it === "string" ? it : it.url).filter(Boolean).join("\n");
 }
 function renderMediaPreview(list){
-  if(!list.length) return `<div class="field-hint">Превью появится автоматически, когда добавите ссылку с открытым доступом «всем, у кого есть ссылка» (Google Drive) или прямую ссылку на картинку.</div>`;
-  return `<div class="media-preview">${list.map((u,i)=>{
-    const prev = mediaPreviewUrl(u);
-    const del = `<button class="mp-del" data-mp-del="${i}" title="Убрать эту картинку из поста">✕</button>`;
-    if(prev){
-      return `<a class="mp-item" href="${escape(u)}" target="_blank" rel="noopener" title="${escape(u)}"><span class="mp-num">${i+1}</span>${del}<img src="${escape(prev)}" loading="lazy" onerror="this.style.display='none';this.parentElement.appendChild(Object.assign(document.createElement('span'),{textContent:'нет превью — открыть ссылку'}))"></a>`;
-    }
-    return `<a class="mp-item" href="${escape(u)}" target="_blank" rel="noopener" title="${escape(u)}"><span class="mp-num">${i+1}</span>${del}<span>ссылка ${i+1}</span></a>`;
+  if(!list || !list.length){
+    return ""; // пусто — ничего не рисуем, uploader сам приглашает
+  }
+  return `<div class="media-preview">${list.map((it,i)=>{
+    const prev = mediaPreviewUrl(it.url);
+    const name = fileLabel(it);
+    const sz = fmtSize(it.size);
+    const warn = sizeWarn(it.size);
+    const caption = [escape(name), sz?`<span class="mp-sz ${warn?'warn':''}">${escape(sz)}${warn?` · ${escape(warn)}`:''}</span>`:""].filter(Boolean).join(" · ");
+    const inner = prev
+      ? `<img src="${escape(prev)}" loading="lazy" onerror="this.style.display='none';this.parentElement.appendChild(Object.assign(document.createElement('span'),{textContent:'нет превью'}))">`
+      : `<span>файл ${i+1}</span>`;
+    return `<a class="mp-item" href="${escape(it.url)}" target="_blank" rel="noopener" title="${escape(name)} · ${escape(it.url)}">
+      <span class="mp-num">${i+1}</span>
+      <button class="mp-del" data-mp-del="${i}" title="Убрать">✕</button>
+      ${inner}
+      <span class="mp-caption">${caption}</span>
+    </a>`;
   }).join("")}</div>`;
 }
-function renderCoverPreview(url){
-  const prev = mediaPreviewUrl(url);
+function renderCoverPreview(value){
+  const it = parseMediaUrl(value);
+  if(!it) return "";
+  const prev = mediaPreviewUrl(it.url);
   if(!prev) return "";
-  return `<div class="cover-preview"><a href="${escape(url)}" target="_blank" rel="noopener"><img src="${escape(prev)}" loading="lazy" onerror="this.parentElement.parentElement.style.display='none'"></a><button class="cp-del" data-cp-del title="Убрать обложку">✕</button></div>`;
+  const name = fileLabel(it);
+  const sz = fmtSize(it.size);
+  const warn = sizeWarn(it.size);
+  return `<div class="file-card">
+    <a class="fc-thumb" href="${escape(it.url)}" target="_blank" rel="noopener" title="Открыть в Drive"><img src="${escape(prev)}" loading="lazy" onerror="this.parentElement.style.background='#222'"></a>
+    <div class="fc-info">
+      <div class="fc-name" title="${escape(name)}">${escape(name)}</div>
+      <div class="fc-size ${warn?'warn':''}">${escape(sz)}${warn?` · ${escape(warn)}`:""}</div>
+    </div>
+    <button class="cp-del" data-cp-del title="Убрать обложку">✕</button>
+  </div>`;
 }
 
 /* ===== PUBLISH MODAL ===== */
@@ -669,11 +759,12 @@ function renderPublishModal(p, plat){
     : "";
 
   const mediaBlock = mediaList.length
-    ? `<div class="pm-media-grid">${mediaList.map((u,i)=>{
-        const prev = mediaPreviewUrl(u);
-        return `<a class="pm-mi" href="${escape(u)}" target="_blank" rel="noopener" title="${escape(u)}"><span class="pm-mi-num">${i+1}</span>${prev?`<img src="${escape(prev)}" loading="lazy" onerror="this.style.display='none';this.parentElement.appendChild(Object.assign(document.createElement('span'),{textContent:'нет превью'}))">`:`<span>ссылка ${i+1}</span>`}</a>`;
+    ? `<div class="pm-media-grid">${mediaList.map((it,i)=>{
+        const prev = mediaPreviewUrl(it.url);
+        const label = fileLabel(it);
+        return `<a class="pm-mi" href="${escape(it.url)}" target="_blank" rel="noopener" title="${escape(label)}"><span class="pm-mi-num">${i+1}</span>${prev?`<img src="${escape(prev)}" loading="lazy" onerror="this.style.display='none';this.parentElement.appendChild(Object.assign(document.createElement('span'),{textContent:'нет превью'}))">`:`<span>файл ${i+1}</span>`}</a>`;
       }).join("")}</div>
-      <button class="btn pm-open-all" data-urls='${escape(JSON.stringify(mediaList))}'>📂 Открыть все картинки в новых вкладках</button>`
+      <button class="btn pm-open-all" data-urls='${escape(JSON.stringify(mediaList.map(it=>it.url)))}'>📂 Открыть все картинки в новых вкладках</button>`
     : "";
 
   const noMedia = (!coverPrev && !mediaList.length)
@@ -825,6 +916,44 @@ function renderAll(){
   $("#sec-all").innerHTML = `<div class="post-grid">${list.map(postCard).join("")}</div>`;
 }
 
+/* ===== UPLOADER blocks (DRY) ===== */
+function uploaderCover(postId, sufx, value, label){
+  const hasFile = !!parseMediaUrl(value);
+  const sufxAttr = sufx || "";
+  return `
+    <div class="af-label">${escape(label)}</div>
+    <div id="cover-preview-${postId}${sufxAttr}">${renderCoverPreview(value)}</div>
+    <div class="uploader" data-up-cover="${postId}|${sufxAttr}">
+      <div class="uploader-icon">⬆</div>
+      <div class="uploader-title">${hasFile?"Заменить файл":"Перетащите файл сюда"}</div>
+      <div class="uploader-sub">или <b>нажмите чтобы выбрать</b> с компьютера · JPG / PNG / MP4 · до 50 МБ</div>
+      <div class="uploader-status">⏳ Загрузка…</div>
+    </div>
+    <details class="manual-link">
+      <summary>Или вставить ссылку на Drive вручную</summary>
+      <input type="url" data-field="cover${sufxAttr}" data-id="${postId}" value="${escape(value||"")}" placeholder="https://drive.google.com/file/d/.../view">
+    </details>
+  `;
+}
+function uploaderMedia(postId, sufx, value, label){
+  const items = parseMediaList(value);
+  const sufxAttr = sufx || "";
+  return `
+    <div class="af-label">${escape(label)}</div>
+    <div id="media-preview-${postId}${sufxAttr}">${renderMediaPreview(items)}</div>
+    <div class="uploader" data-up-media="${postId}|${sufxAttr}">
+      <div class="uploader-icon">⬆</div>
+      <div class="uploader-title">${items.length?"Добавить ещё":"Перетащите файлы сюда"}</div>
+      <div class="uploader-sub">или <b>нажмите чтобы выбрать</b> · можно сразу несколько · до 50 МБ каждый</div>
+      <div class="uploader-status">⏳ Загрузка…</div>
+    </div>
+    <details class="manual-link">
+      <summary>Или вставить ссылки вручную (по одной на строку)</summary>
+      <textarea data-field="media${sufxAttr}" data-id="${postId}" rows="2" placeholder="https://drive.google.com/file/d/.../view">${escape(value||"")}</textarea>
+    </details>
+  `;
+}
+
 /* ANYA — focus mode */
 function isAnyaFilled(p){
   const hasText = !!(p.text && p.text.trim());
@@ -889,19 +1018,9 @@ function renderAnya(){
       <details ${hasAny?"open":""}>
         <summary>✏️ Свой контент для ${plat}${hasAny?" · заполнено":""}</summary>
         <div class="small" style="margin:6px 0 10px">Оставьте пустым — для ${plat} возьмётся базовый контент сверху.</div>
-        <div class="af-label">🖼 Обложка для ${plat}</div>
-        <div class="dropzone" data-field-cover="${p.id}|${sufx}">
-          <input type="url" data-field="cover${sufx}" data-id="${p.id}" value="${escape(p["cover"+sufx]||"")}" placeholder="как у IG, либо своя ссылка / перетащите файл сюда">
-          <div class="dz-hint">⬇ перетащите файл — загрузим в Drive</div>
-        </div>
-        <button class="dz-pick" data-pick-cover="${p.id}|${sufx}">📁 Выбрать с компьютера</button>
-        <div id="cover-preview-${p.id}${sufx}">${renderCoverPreview(p["cover"+sufx])}</div>
-        <div class="af-label" style="margin-top:10px">📎 Медиа для ${plat}</div>
-        <div class="dropzone" data-field-media="${p.id}|${sufx}">
-          <textarea data-field="media${sufx}" data-id="${p.id}" rows="2" placeholder="одна ссылка на строку, либо перетащите файлы сюда">${escape(p["media"+sufx]||"")}</textarea>
-          <div class="dz-hint">⬇ перетащите файлы — каждый добавится новой строкой</div>
-        </div>
-        <button class="dz-pick" data-pick-media="${p.id}|${sufx}">📁 Выбрать файлы с компьютера</button>
+        ${uploaderCover(p.id, sufx, p["cover"+sufx]||"", "🖼 Обложка для "+plat)}
+        <div style="height:10px"></div>
+        ${uploaderMedia(p.id, sufx, p["media"+sufx]||"", "📎 Медиа для "+plat)}
         <div id="media-preview-${p.id}${sufx}">${renderMediaPreview(parseMediaList(p["media"+sufx]))}</div>
         <div class="af-label" style="margin-top:10px">✍️ Текст для ${plat}</div>
         <textarea data-field="text${sufx}" data-id="${p.id}" placeholder="как у IG, либо свой текст">${escape(p["text"+sufx]||"")}</textarea>
@@ -925,24 +1044,11 @@ function renderAnya(){
       ${platformsBlock}
 
       <div class="af-block">
-        <div class="af-label">🖼 Обложка (главное изображение) — для всех платформ по умолчанию</div>
-        <div class="dropzone" data-field-cover="${p.id}|">
-          <input type="url" data-field="cover" data-id="${p.id}" value="${escape(p.cover||"")}" placeholder="https://drive.google.com/file/d/.../view  или перетащите файл сюда">
-          <div class="dz-hint">⬇ перетащите файл — загрузим в Drive</div>
-        </div>
-        <button class="dz-pick" data-pick-cover="${p.id}|">📁 Выбрать с компьютера</button>
-        <div id="cover-preview-${p.id}">${renderCoverPreview(p.cover)}</div>
+        ${uploaderCover(p.id, "", p.cover||"", "🖼 Обложка — для всех платформ по умолчанию")}
       </div>
 
       <div class="af-block">
-        <div class="af-label">📎 Картинки и видео — по одной ссылке на строку</div>
-        <div class="dropzone" data-field-media="${p.id}|">
-          <textarea data-field="media" data-id="${p.id}" rows="2" placeholder="https://drive.google.com/file/d/.../view&#10;вторая ссылка...&#10;или перетащите файлы сюда">${escape(p.media||"")}</textarea>
-          <div class="dz-hint">⬇ перетащите файлы — каждый добавится новой строкой</div>
-        </div>
-        <button class="dz-pick" data-pick-media="${p.id}|">📁 Выбрать файлы с компьютера</button>
-        <div id="media-preview-${p.id}">${renderMediaPreview(parseMediaList(p.media))}</div>
-        <div class="field-hint">Drive → «Поделиться» → «Доступ для всех» → ссылку сюда. Или перетащите файл / нажмите «Выбрать с компьютера» — пульт загрузит сам.</div>
+        ${uploaderMedia(p.id, "", p.media||"", "📎 Картинки и видео — для всех платформ по умолчанию")}
       </div>
 
       <div class="af-block">
@@ -1355,34 +1461,34 @@ async function uploadFileToDrive(file){
 }
 
 /* Общая загрузка списка файлов в конкретное поле поста */
-async function ingestFiles(files, postId, kind /* "cover"|"media" */, sufx, dz){
+async function ingestFiles(files, postId, kind /* "cover"|"media" */, sufx, uploaderEl){
   files = Array.from(files||[]); if(!files.length) return;
   const p = state.posts[postId]; if(!p){ alert("Не нашёл пост"); return; }
   const fieldName = kind + (sufx||"");
-  if(dz){
-    dz.classList.add("uploading");
-    if(!dz.querySelector(".dz-uploading")){
-      const tag = document.createElement("div");
-      tag.className = "dz-uploading"; tag.textContent = "⏳";
-      dz.appendChild(tag);
-    }
+  if(uploaderEl){
+    uploaderEl.classList.add("uploading");
+    const status = uploaderEl.querySelector(".uploader-status");
+    if(status) status.textContent = "⏳ Загрузка…";
   }
   try{
     for(let i=0;i<files.length;i++){
       const file = files[i];
-      if(dz) dz.querySelector(".dz-uploading").textContent = `⏳ ${i+1}/${files.length}`;
-      else setConn(`⏳ ${i+1}/${files.length} · ${file.name}`,"warn");
-      const url = await uploadFileToDrive(file);
-      if(!url) continue;
+      if(uploaderEl){
+        const status = uploaderEl.querySelector(".uploader-status");
+        if(status) status.textContent = `⏳ ${i+1}/${files.length} · ${file.name}`;
+      }
+      const rawUrl = await uploadFileToDrive(file);
+      if(!rawUrl) continue;
+      const url = withMeta(rawUrl, file.name, file.size);
       if(kind === "cover"){
         p[fieldName] = url;
-        const inp = dz && dz.querySelector('input[data-field]'); if(inp) inp.value = url;
-        else { const el = document.querySelector(`input[data-field="${fieldName}"][data-id="${postId}"]`); if(el) el.value = url; }
+        const el = document.querySelector(`input[data-field="${fieldName}"][data-id="${postId}"]`);
+        if(el) el.value = url;
       } else {
         const cur = (p[fieldName]||"").trim();
         p[fieldName] = cur ? cur + "\n" + url : url;
-        const ta = dz && dz.querySelector('textarea[data-field]'); if(ta) ta.value = p[fieldName];
-        else { const el = document.querySelector(`textarea[data-field="${fieldName}"][data-id="${postId}"]`); if(el) el.value = p[fieldName]; }
+        const el = document.querySelector(`textarea[data-field="${fieldName}"][data-id="${postId}"]`);
+        if(el) el.value = p[fieldName];
       }
       saveState();
       const ri = rowIndexOf(p); if(ri) pushField(ri, fieldName, p[fieldName], 0);
@@ -1390,31 +1496,33 @@ async function ingestFiles(files, postId, kind /* "cover"|"media" */, sufx, dz){
     }
     flash("Загружено в Drive");
     updateAnyaProgressLight();
+    // Перерисуем фокус-карточку, чтобы обновить заголовки и кнопку «Готов»
+    if(state.activeTab === "anya" && state.anyaCurrentId === postId) renderAnya();
   } catch(err){
     alert("Не удалось загрузить: " + err.message);
     setConn("⚠ "+err.message,"red");
   } finally {
-    if(dz) dz.classList.remove("uploading");
+    if(uploaderEl) uploaderEl.classList.remove("uploading");
   }
 }
 
-/* Drag&drop поверх dropzone-обёрток вокруг cover input и media textarea */
+/* Drag&drop + клик по .uploader */
 document.addEventListener("dragover", e => {
-  const dz = e.target.closest(".dropzone"); if(!dz) return;
-  e.preventDefault(); dz.classList.add("drag-over");
+  const up = e.target.closest(".uploader"); if(!up) return;
+  e.preventDefault(); up.classList.add("drag-over");
 });
 document.addEventListener("dragleave", e => {
-  const dz = e.target.closest(".dropzone"); if(!dz) return;
-  if(!dz.contains(e.relatedTarget)) dz.classList.remove("drag-over");
+  const up = e.target.closest(".uploader"); if(!up) return;
+  if(!up.contains(e.relatedTarget)) up.classList.remove("drag-over");
 });
 document.addEventListener("drop", async e => {
-  const dz = e.target.closest(".dropzone"); if(!dz) return;
-  e.preventDefault(); dz.classList.remove("drag-over");
+  const up = e.target.closest(".uploader"); if(!up) return;
+  e.preventDefault(); up.classList.remove("drag-over");
   const files = Array.from(e.dataTransfer.files||[]); if(!files.length) return;
-  const isCover = dz.hasAttribute("data-field-cover");
-  const meta = (dz.getAttribute("data-field-cover") || dz.getAttribute("data-field-media") || "");
+  const isCover = up.hasAttribute("data-up-cover");
+  const meta = (up.getAttribute("data-up-cover") || up.getAttribute("data-up-media") || "");
   const [postId, sufx] = meta.split("|");
-  await ingestFiles(files, postId, isCover ? "cover" : "media", sufx||"", dz);
+  await ingestFiles(files, postId, isCover ? "cover" : "media", sufx||"", up);
 });
 
 /* Удаление превью (✕) — крестик внутри <a>, поэтому ловим в capture-фазе и блокируем переход */
@@ -1432,7 +1540,7 @@ async function removeMediaAt(postId, sufx, idx){
   const list = parseMediaList(p[field]);
   if(idx < 0 || idx >= list.length) return;
   list.splice(idx, 1);
-  p[field] = list.join("\n");
+  p[field] = serializeMediaList(list);
   saveState();
   const ta = document.querySelector(`textarea[data-field="${field}"][data-id="${postId}"]`);
   if(ta) ta.value = p[field];
@@ -1474,33 +1582,21 @@ document.addEventListener("click", e => {
   }
 }, true);
 
-/* File picker через кнопку «📁 Выбрать с компьютера» */
-let _pickContext = null; // {postId, kind, sufx, dz}
+/* Клик по .uploader открывает file picker */
+let _pickContext = null; // {postId, kind, sufx, uploaderEl}
 document.addEventListener("click", e => {
-  const btn = e.target.closest("[data-pick-cover], [data-pick-media]");
-  if(!btn) return;
-  const isCover = btn.hasAttribute("data-pick-cover");
-  const meta = (btn.getAttribute("data-pick-cover") || btn.getAttribute("data-pick-media") || "");
+  const up = e.target.closest(".uploader");
+  if(!up) return;
+  // Игнорируем клики по элементам внутри (если будут)
+  if(e.target.closest("button, a, input, textarea")) return;
+  const isCover = up.hasAttribute("data-up-cover");
+  const meta = (up.getAttribute("data-up-cover") || up.getAttribute("data-up-media") || "");
   const [postId, sufx] = meta.split("|");
-  const fieldName = (isCover ? "cover" : "media") + (sufx||"");
-  // подбираем соседнюю dropzone (если найдётся — для прогресс-индикатора)
-  let dz = null;
-  const card = btn.closest(".anya-focus, .card");
-  if(card){
-    const selector = isCover ? `.dropzone[data-field-cover="${meta}"]` : `.dropzone[data-field-media="${meta}"]`;
-    dz = card.querySelector(selector);
-  }
   const pick = document.getElementById("filePick");
-  // Один пикер на всех — для cover только одно изображение, для media — несколько
-  if(isCover){
-    pick.accept = "image/*,video/*";
-    pick.multiple = false;
-  } else {
-    pick.accept = "image/*,video/*";
-    pick.multiple = true;
-  }
-  _pickContext = {postId, kind: isCover ? "cover" : "media", sufx: sufx||"", dz};
-  pick.value = "";  // чтобы повторный выбор того же файла триггерил change
+  pick.accept = "image/*,video/*";
+  pick.multiple = !isCover;
+  _pickContext = {postId, kind: isCover ? "cover" : "media", sufx: sufx||"", uploaderEl: up};
+  pick.value = "";
   pick.click();
 });
 document.getElementById("filePick").addEventListener("change", async e => {
@@ -1508,7 +1604,7 @@ document.getElementById("filePick").addEventListener("change", async e => {
   if(!ctx) return;
   const files = Array.from(e.target.files||[]);
   e.target.value = "";
-  await ingestFiles(files, ctx.postId, ctx.kind, ctx.sufx, ctx.dz);
+  await ingestFiles(files, ctx.postId, ctx.kind, ctx.sufx, ctx.uploaderEl);
 });
 
 /* close publish modal on backdrop click + Esc */
