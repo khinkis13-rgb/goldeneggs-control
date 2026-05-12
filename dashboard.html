@@ -201,6 +201,24 @@
   .af-counter{color:var(--muted);font-size:13px;text-align:center;flex:1}
   .af-empty{padding:40px;text-align:center;background:var(--panel);border:1px dashed var(--line);border-radius:var(--radius);color:var(--muted)}
 
+  /* LIGHTBOX */
+  .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;z-index:60;padding:24px}
+  .lightbox.show{display:flex}
+  .lb-stage{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  .lb-stage img,.lb-stage video{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;background:#000;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .lb-close{position:absolute;top:14px;right:14px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.1);color:#fff;border:none;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;z-index:2}
+  .lb-close:hover{background:var(--danger);color:#1b160c}
+  .lb-nav{position:absolute;top:50%;transform:translateY(-50%);width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,.08);color:#fff;border:none;font-size:24px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;z-index:2}
+  .lb-nav:hover{background:rgba(230,184,100,.25);color:var(--gold)}
+  .lb-prev{left:18px}.lb-next{right:18px}
+  .lb-info{position:absolute;bottom:18px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.7);padding:8px 16px;border-radius:99px;color:#fff;font-size:13px;display:flex;align-items:center;gap:12px;max-width:90%}
+  .lb-info .lb-name{color:var(--cream);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px}
+  .lb-info .lb-size{color:var(--muted);font-size:12px}
+  .lb-info a{color:var(--gold);text-decoration:none;font-size:12px}
+  .lb-info a:hover{text-decoration:underline}
+  .lb-counter{position:absolute;top:16px;left:18px;background:rgba(0,0,0,.7);padding:6px 14px;border-radius:99px;color:var(--gold);font-size:13px;font-weight:600}
+  .lb-spinner{color:var(--gold);font-size:14px}
+
   /* helpers */
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
   .small{font-size:12px;color:var(--muted)}
@@ -277,6 +295,7 @@
 </div>
 
 <div class="modal-bg" id="modal"><div class="modal" id="modalBody"></div></div>
+<div class="lightbox" id="lightbox"><div class="lb-stage" id="lbStage"></div></div>
 
 <input type="file" id="fileImport" accept="application/json" style="display:none">
 <input type="file" id="filePick" multiple style="display:none">
@@ -1184,15 +1203,29 @@ function renderHelp(){
     </div>
     <div style="height:14px"></div>
     <div class="card">
+      <h3>📩 Что отправить Ане</h3>
+      <div class="small" style="line-height:1.7">
+        Аня работает только через пульт — никакого доступа к Google-таблице или Drive ей давать не надо. Файлы она загружает прямо через сайт, всё уходит в вашу папку Drive автоматически. Достаточно:
+        <ol style="margin-top:8px">
+          <li>Скинуть ссылку на сайт пульта.</li>
+          <li>Сказать: «открой вкладку <strong>Аня</strong>, заполняй посты по порядку — кнопка <em>→ Следующий незаполненный</em> переключает».</li>
+          <li>Когда пост готов — она нажимает <strong>✓ Готов — передать Дмитрию на ревью</strong>. Вы видите его в статусе «На ревью».</li>
+        </ol>
+      </div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="card">
       <h3>Как пользоваться пультом</h3>
       <ol>
-        <li><strong>Сегодня</strong> — то, что нужно опубликовать сейчас + ближайшие 7 дней. Открываете карточку, «Скопировать пост», переходите по «Открыть Instagram/Facebook/…», вставляете, загружаете медиа из общей папки, публикуете. Возвращаетесь — ставите статус «Опубликован».</li>
+        <li><strong>Сегодня</strong> — то, что нужно опубликовать сейчас + ближайшие 7 дней. Открыли карточку → <strong>🚀 Публикую</strong> → скопировали текст, открыли соцсеть, вставили, медиа берёте отсюда же. Возвращаетесь — «✓ Опубликовано».</li>
         <li><strong>Календарь</strong> — общая картина по неделям. Цветная полоска слева = статус: серая (черновик), жёлтая (на ревью), зелёная (готов), золотая зачёркнутая (опубликован).</li>
-        <li><strong>Все посты</strong> — редактирование текста, хэштегов, ссылок на медиа, ответственного. Здесь Аня заполняет содержимое.</li>
-        <li><strong>Аня</strong> — её рабочее окно: что в черновике, что ждёт ваших правок, что готово.</li>
-        <li><strong>Чек-лист</strong> на каждой карточке — публиковать строго после галочек.</li>
-        <li><strong>Настройки</strong> — URL Google-таблицы, ссылки на соцсети, папка с медиа, базовые хэштеги, дата премьеры.</li>
-        <li><strong>⟳</strong> в верхнем правом углу — обновить данные из таблицы (если Аня что-то правит прямо сейчас).</li>
+        <li><strong>Все посты</strong> — общий редактор: тексты, хэштеги, медиа, статусы, чек-листы.</li>
+        <li><strong>Аня</strong> — её фокус-режим: одна карточка в работе, прогресс «X из Y», навигация по постам.</li>
+        <li><strong>Картинки</strong> — перетащите файл в зону загрузки или кликните «нажмите чтобы выбрать». Пульт сам загрузит в вашу папку Drive и подставит ссылку. Превью кликабельны — клик увеличивает на весь экран.</li>
+        <li><strong>Платформы</strong> — чипы «Куда постим» вверху карточки. Если для какой-то платформы нужен другой текст или картинка — раскройте блок «✏️ Свой контент для …».</li>
+        <li><strong>Чек-лист</strong> — свёрнут по умолчанию, открывает Дмитрий перед публикацией.</li>
+        <li><strong>Настройки</strong> — URL Apps Script, ссылки на соцсети, общая папка Drive, базовые хэштеги, дата премьеры.</li>
+        <li><strong>⟳</strong> в верхнем правом углу — обновить данные из таблицы.</li>
       </ol>
     </div>
     <div style="height:14px"></div>
@@ -1429,6 +1462,94 @@ $("#btnReset").addEventListener("click", () => {
   if(!confirm("Сбросить все локальные изменения и вернуть исходное расписание?")) return;
   localStorage.removeItem(LS_KEY); state = loadState(); render();
 });
+
+/* ===== LIGHTBOX ===== */
+let _lb = {items:[], idx:0};
+function bigPreviewUrl(rawUrl){
+  const u = String(rawUrl||"").trim().split("#")[0];
+  if(!u) return null;
+  const id = extractDriveId(u);
+  if(id) return `https://drive.google.com/thumbnail?id=${id}&sz=w2000`;
+  if(/^https?:\/\/.+\.(jpe?g|png|gif|webp|avif|bmp|mp4|webm|mov)(\?.*)?$/i.test(u)) return u;
+  return null;
+}
+function isVideoUrl(rawUrl){
+  return /\.(mp4|webm|mov|m4v)(#|$|\?)/i.test(String(rawUrl||"").split("#")[0]);
+}
+function openLightbox(items, idx){
+  _lb = {items: items.filter(it => bigPreviewUrl(it.url)), idx: 0};
+  if(!_lb.items.length) return;
+  _lb.idx = Math.max(0, Math.min(idx||0, _lb.items.length-1));
+  $("#lightbox").classList.add("show");
+  renderLightbox();
+}
+function renderLightbox(){
+  const stage = $("#lbStage");
+  const it = _lb.items[_lb.idx]; if(!it){ closeLightbox(); return; }
+  const big = bigPreviewUrl(it.url);
+  const name = fileLabel(it);
+  const sz = fmtSize(it.size);
+  const isVid = isVideoUrl(it.url);
+  const media = isVid
+    ? `<video src="${escape(it.url)}" controls autoplay></video>`
+    : `<img src="${escape(big)}" alt="${escape(name)}" onerror="this.outerHTML='<div class=lb-spinner>Не получилось загрузить превью. <a href=\\''+this.getAttribute('data-orig')+'\\' target=_blank rel=noopener>Открыть оригинал</a></div>'" data-orig="${escape(it.url)}">`;
+  const nav = _lb.items.length > 1
+    ? `<button class="lb-nav lb-prev" data-lb-prev title="Назад (←)">‹</button>
+       <button class="lb-nav lb-next" data-lb-next title="Вперёд (→)">›</button>
+       <div class="lb-counter">${_lb.idx+1} / ${_lb.items.length}</div>`
+    : "";
+  stage.innerHTML = `
+    <button class="lb-close" data-lb-close title="Закрыть (Esc)">✕</button>
+    ${nav}
+    ${media}
+    <div class="lb-info">
+      <span class="lb-name">${escape(name)}</span>
+      ${sz?`<span class="lb-size">${escape(sz)}</span>`:""}
+      <a href="${escape(it.url)}" target="_blank" rel="noopener">↗ Открыть оригинал</a>
+    </div>
+  `;
+}
+function closeLightbox(){ $("#lightbox").classList.remove("show"); $("#lbStage").innerHTML = ""; }
+function lbNext(){ if(!_lb.items.length) return; _lb.idx = (_lb.idx+1) % _lb.items.length; renderLightbox(); }
+function lbPrev(){ if(!_lb.items.length) return; _lb.idx = (_lb.idx-1+_lb.items.length) % _lb.items.length; renderLightbox(); }
+
+document.addEventListener("click", e => {
+  if(e.target.closest("[data-lb-close]")){ closeLightbox(); return; }
+  if(e.target.closest("[data-lb-prev]")){ lbPrev(); return; }
+  if(e.target.closest("[data-lb-next]")){ lbNext(); return; }
+  // Клик по фону lightbox (вне изображения) закрывает
+  const lb = document.getElementById("lightbox");
+  if(lb && lb.classList.contains("show") && e.target === lb) closeLightbox();
+}, false);
+
+document.addEventListener("keydown", e => {
+  if(!document.getElementById("lightbox").classList.contains("show")) return;
+  if(e.key === "Escape") closeLightbox();
+  else if(e.key === "ArrowRight") lbNext();
+  else if(e.key === "ArrowLeft") lbPrev();
+});
+
+/* Перехватываем клики по превью (мини-плитки, обложка, плитки в модалке публикации) — открываем lightbox */
+document.addEventListener("click", e => {
+  // не мешаем кнопкам удаления / открытия оригинала
+  if(e.target.closest("[data-mp-del], [data-cp-del], button")) return;
+  const mp = e.target.closest(".mp-item, .pm-mi, .file-card .fc-thumb");
+  if(!mp) return;
+  e.preventDefault();
+  // Собираем список — все плитки из того же контейнера, чтобы листать.
+  const container = mp.closest(".media-preview, .pm-media-grid");
+  if(container){
+    const all = Array.from(container.querySelectorAll(".mp-item, .pm-mi"));
+    const items = all.map(a => parseMediaUrl(a.getAttribute("href")));
+    const idx = all.indexOf(mp);
+    openLightbox(items, idx);
+  } else {
+    // Обложка — одна
+    const a = mp.closest(".file-card") && mp.closest(".file-card").querySelector(".fc-thumb");
+    const href = (a||mp).getAttribute("href");
+    openLightbox([parseMediaUrl(href)], 0);
+  }
+}, true);
 
 /* ===== DRAG&DROP UPLOAD ===== */
 const MAX_UPLOAD_BYTES = 30 * 1024 * 1024; // 30 MB предупреждение
