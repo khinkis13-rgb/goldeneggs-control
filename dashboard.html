@@ -103,7 +103,9 @@
   .media-preview .mp-item img{width:100%;height:100%;object-fit:cover;display:block}
   .media-preview .mp-item:hover{border-color:var(--gold-dim)}
   .media-preview .mp-item .mp-num{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.6);color:var(--gold);font-size:10px;padding:1px 6px;border-radius:99px;font-weight:600}
-  .cover-preview{margin-top:8px}
+  .mp-del,.cp-del{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.65);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1;cursor:pointer;border:none;padding:0;z-index:3;transition:.15s}
+  .mp-del:hover,.cp-del:hover{background:var(--danger);color:#1b160c}
+  .cover-preview{margin-top:8px;position:relative;display:inline-block}
   .cover-preview a{display:inline-block;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
   .cover-preview a:hover{border-color:var(--gold-dim)}
   .cover-preview img{display:block;max-width:200px;max-height:200px;object-fit:cover}
@@ -626,16 +628,17 @@ function renderMediaPreview(list){
   if(!list.length) return `<div class="field-hint">Превью появится автоматически, когда добавите ссылку с открытым доступом «всем, у кого есть ссылка» (Google Drive) или прямую ссылку на картинку.</div>`;
   return `<div class="media-preview">${list.map((u,i)=>{
     const prev = mediaPreviewUrl(u);
+    const del = `<button class="mp-del" data-mp-del="${i}" title="Убрать эту картинку из поста">✕</button>`;
     if(prev){
-      return `<a class="mp-item" href="${escape(u)}" target="_blank" rel="noopener" title="${escape(u)}"><span class="mp-num">${i+1}</span><img src="${escape(prev)}" loading="lazy" onerror="this.style.display='none';this.parentElement.appendChild(Object.assign(document.createElement('span'),{textContent:'нет превью — открыть ссылку'}))"></a>`;
+      return `<a class="mp-item" href="${escape(u)}" target="_blank" rel="noopener" title="${escape(u)}"><span class="mp-num">${i+1}</span>${del}<img src="${escape(prev)}" loading="lazy" onerror="this.style.display='none';this.parentElement.appendChild(Object.assign(document.createElement('span'),{textContent:'нет превью — открыть ссылку'}))"></a>`;
     }
-    return `<a class="mp-item" href="${escape(u)}" target="_blank" rel="noopener" title="${escape(u)}"><span class="mp-num">${i+1}</span><span>ссылка ${i+1}</span></a>`;
+    return `<a class="mp-item" href="${escape(u)}" target="_blank" rel="noopener" title="${escape(u)}"><span class="mp-num">${i+1}</span>${del}<span>ссылка ${i+1}</span></a>`;
   }).join("")}</div>`;
 }
 function renderCoverPreview(url){
   const prev = mediaPreviewUrl(url);
   if(!prev) return "";
-  return `<div class="cover-preview"><a href="${escape(url)}" target="_blank" rel="noopener"><img src="${escape(prev)}" loading="lazy" onerror="this.parentElement.parentElement.style.display='none'"></a></div>`;
+  return `<div class="cover-preview"><a href="${escape(url)}" target="_blank" rel="noopener"><img src="${escape(prev)}" loading="lazy" onerror="this.parentElement.parentElement.style.display='none'"></a><button class="cp-del" data-cp-del title="Убрать обложку">✕</button></div>`;
 }
 
 /* ===== PUBLISH MODAL ===== */
@@ -1413,6 +1416,63 @@ document.addEventListener("drop", async e => {
   const [postId, sufx] = meta.split("|");
   await ingestFiles(files, postId, isCover ? "cover" : "media", sufx||"", dz);
 });
+
+/* Удаление превью (✕) — крестик внутри <a>, поэтому ловим в capture-фазе и блокируем переход */
+function parsePreviewId(elId, prefix){
+  // elId вида "cover-preview-row-7_fb" или "media-preview-row-7" — возвращает {postId, sufx}
+  if(!elId || !elId.startsWith(prefix)) return null;
+  const rest = elId.slice(prefix.length); // "row-7" или "row-7_fb"
+  const m = rest.match(/^(.+?)(_(fb|tg|tt|yt|vk))?$/);
+  if(!m) return null;
+  return {postId: m[1], sufx: m[2] || ""};
+}
+async function removeMediaAt(postId, sufx, idx){
+  const p = state.posts[postId]; if(!p) return;
+  const field = "media" + (sufx||"");
+  const list = parseMediaList(p[field]);
+  if(idx < 0 || idx >= list.length) return;
+  list.splice(idx, 1);
+  p[field] = list.join("\n");
+  saveState();
+  const ta = document.querySelector(`textarea[data-field="${field}"][data-id="${postId}"]`);
+  if(ta) ta.value = p[field];
+  refreshPreview(postId, "media", p[field], sufx||"");
+  const ri = rowIndexOf(p); if(ri) pushField(ri, field, p[field], 0);
+  updateAnyaProgressLight();
+  flash("Картинка убрана из поста");
+}
+async function removeCover(postId, sufx){
+  const p = state.posts[postId]; if(!p) return;
+  const field = "cover" + (sufx||"");
+  p[field] = "";
+  saveState();
+  const inp = document.querySelector(`input[data-field="${field}"][data-id="${postId}"]`);
+  if(inp) inp.value = "";
+  refreshPreview(postId, "cover", "", sufx||"");
+  const ri = rowIndexOf(p); if(ri) pushField(ri, field, "", 0);
+  updateAnyaProgressLight();
+  flash("Обложка убрана");
+}
+document.addEventListener("click", e => {
+  const del = e.target.closest("[data-mp-del], [data-cp-del]");
+  if(!del) return;
+  e.preventDefault(); e.stopPropagation();
+  if(del.hasAttribute("data-mp-del")){
+    const container = del.closest('[id^="media-preview-"]');
+    if(!container) return;
+    const info = parsePreviewId(container.id, "media-preview-");
+    if(!info) return;
+    if(!confirm("Убрать эту картинку из поста? (файл в Drive останется)")) return;
+    removeMediaAt(info.postId, info.sufx, parseInt(del.dataset.mpDel,10));
+  } else {
+    const container = del.closest('[id^="cover-preview-"]');
+    if(!container) return;
+    const info = parsePreviewId(container.id, "cover-preview-");
+    if(!info) return;
+    if(!confirm("Убрать обложку? (файл в Drive останется)")) return;
+    removeCover(info.postId, info.sufx);
+  }
+}, true);
 
 /* File picker через кнопку «📁 Выбрать с компьютера» */
 let _pickContext = null; // {postId, kind, sufx, dz}
