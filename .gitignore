@@ -1,0 +1,15 @@
+# Локальные бэкапы экспорта дашборда
+goldeneggs_*.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+*.swp
+*~
+
+# Node / build artifacts (на будущее)
+node_modules/
+dist/

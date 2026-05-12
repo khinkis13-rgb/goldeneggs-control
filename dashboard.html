@@ -1,0 +1,1041 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Золотые яйца — пульт публикаций</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{
+    --bg:#0f0d0a; --bg2:#171410; --panel:#1f1a14; --line:#2a2319;
+    --gold:#e6b864; --gold-dim:#9a7c3f; --cream:#f4ecd8;
+    --txt:#f4ecd8; --muted:#b9ad8f; --danger:#e07a5f; --ok:#7bbf6a; --warn:#e6c562;
+    --radius:14px; --shadow:0 8px 24px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Arial,sans-serif;font-size:15px;line-height:1.45}
+  a{color:var(--gold);text-decoration:none}
+  a:hover{text-decoration:underline}
+  button,select,input,textarea{font-family:inherit;font-size:14px}
+  textarea,input[type=text],input[type=url]{width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--txt);padding:10px 12px;resize:vertical}
+  textarea:focus,input:focus{outline:none;border-color:var(--gold-dim)}
+  .btn{display:inline-flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:7px 12px;cursor:pointer;transition:.15s}
+  .btn:hover{border-color:var(--gold-dim);color:var(--gold)}
+  .btn.primary{background:var(--gold);color:#1b160c;border-color:var(--gold);font-weight:600}
+  .btn.primary:hover{background:#f0c878;color:#1b160c}
+  .btn.ghost{background:transparent}
+  .btn.danger:hover{border-color:var(--danger);color:var(--danger)}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;background:var(--bg2);border:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .pill.gold{background:rgba(230,184,100,.12);border-color:var(--gold-dim);color:var(--gold)}
+  .pill.ok{background:rgba(123,191,106,.12);border-color:#3e6532;color:var(--ok)}
+  .pill.warn{background:rgba(230,197,98,.12);border-color:#7a6420;color:var(--warn)}
+  .pill.red{background:rgba(224,122,95,.14);border-color:#7a3a2a;color:var(--danger)}
+
+  /* layout */
+  .wrap{max-width:1280px;margin:0 auto;padding:24px 22px 80px}
+  header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:20px}
+  .brand{display:flex;align-items:center;gap:14px}
+  .brand .egg{font-size:34px;line-height:1}
+  .brand h1{margin:0;font-size:22px;letter-spacing:.3px}
+  .brand .sub{color:var(--muted);font-size:13px;margin-top:2px}
+  .stats{display:flex;gap:10px;flex-wrap:wrap}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 14px;min-width:110px}
+  .stat .n{font-size:22px;font-weight:600;color:var(--gold)}
+  .stat .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+
+  nav.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:18px;overflow-x:auto}
+  nav.tabs button{background:transparent;border:none;color:var(--muted);padding:10px 14px;cursor:pointer;border-bottom:2px solid transparent;font-size:14px;white-space:nowrap}
+  nav.tabs button.active{color:var(--gold);border-bottom-color:var(--gold)}
+  nav.tabs button:hover{color:var(--cream)}
+
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .toolbar select{background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--txt);padding:7px 10px}
+  .toolbar .spacer{flex:1}
+
+  /* sections */
+  section{display:none}
+  section.active{display:block}
+
+  /* TODAY */
+  .today-empty{padding:30px;text-align:center;background:var(--panel);border:1px dashed var(--line);border-radius:var(--radius);color:var(--muted)}
+  .today-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
+
+  /* CARDS */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px}
+  .card .hdr{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+  .card h3{margin:0;font-size:16px}
+  .card .meta{font-size:12px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .card textarea{min-height:80px}
+  .actions{display:flex;flex-wrap:wrap;gap:6px}
+  .checklist{display:flex;flex-direction:column;gap:4px;margin-top:2px}
+  .checklist label{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--cream);cursor:pointer;padding:3px 0}
+  .checklist input{accent-color:var(--gold);margin-top:3px}
+  .checklist label.done{color:var(--muted);text-decoration:line-through}
+
+  /* CALENDAR */
+  .cal{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+  .cal .day{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;min-height:140px}
+  .cal .day.today{border-color:var(--gold);box-shadow:0 0 0 2px rgba(230,184,100,.15)}
+  .cal .dlabel{font-size:12px;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between}
+  .cal .dlabel .dnum{color:var(--cream);font-weight:600;font-size:15px}
+  .cal .ev{font-size:12px;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:4px 6px;margin-bottom:4px;cursor:pointer}
+  .cal .ev:hover{border-color:var(--gold-dim)}
+  .cal .ev .t{color:var(--gold);font-weight:600;margin-right:6px}
+  .cal .ev.s-ready{border-left:3px solid var(--ok)}
+  .cal .ev.s-review{border-left:3px solid var(--warn)}
+  .cal .ev.s-draft{border-left:3px solid var(--gold-dim)}
+  .cal .ev.s-published{opacity:.55;text-decoration:line-through}
+
+  /* list */
+  .post-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px}
+
+  /* settings */
+  .setrow{display:grid;grid-template-columns:170px 1fr;gap:12px;align-items:center;margin-bottom:10px}
+  .setrow label{color:var(--muted);font-size:13px}
+  .help{font-size:12px;color:var(--muted);margin-top:6px}
+
+  /* progress */
+  .progress{height:6px;background:var(--bg2);border-radius:99px;overflow:hidden}
+  .progress > div{height:100%;background:linear-gradient(90deg,var(--gold-dim),var(--gold));transition:.3s}
+
+  /* media preview */
+  .media-preview{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px;margin-top:8px}
+  .media-preview .mp-item{position:relative;aspect-ratio:1;background:var(--bg2);border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;text-align:center;padding:6px;text-decoration:none}
+  .media-preview .mp-item img{width:100%;height:100%;object-fit:cover;display:block}
+  .media-preview .mp-item:hover{border-color:var(--gold-dim)}
+  .media-preview .mp-item .mp-num{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.6);color:var(--gold);font-size:10px;padding:1px 6px;border-radius:99px;font-weight:600}
+  .cover-preview{margin-top:8px}
+  .cover-preview a{display:inline-block;border-radius:10px;overflow:hidden;border:1px solid var(--line)}
+  .cover-preview a:hover{border-color:var(--gold-dim)}
+  .cover-preview img{display:block;max-width:200px;max-height:200px;object-fit:cover}
+  .field-hint{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.45}
+
+  /* modal */
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+  .modal-bg.show{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:960px;width:100%;max-height:92vh;overflow-y:auto;padding:22px;box-shadow:var(--shadow)}
+  .modal h2{margin:0 0 10px}
+
+  /* publish modal */
+  .pm-head{display:flex;justify-content:space-between;gap:10px;margin-bottom:16px;align-items:flex-start}
+  .pm-title{font-size:20px;font-weight:600;color:var(--gold);line-height:1.25}
+  .pm-grid{display:grid;grid-template-columns:1.1fr 1fr;gap:18px;margin-bottom:16px}
+  .pm-text-area{min-height:260px;font-size:14px;line-height:1.5;white-space:pre-wrap}
+  .pm-cover{margin-bottom:10px;text-align:center}
+  .pm-cover a{display:inline-block;border-radius:12px;overflow:hidden;border:1px solid var(--line);max-width:100%}
+  .pm-cover a:hover{border-color:var(--gold-dim)}
+  .pm-cover img{display:block;max-width:100%;max-height:280px;object-fit:contain}
+  .pm-cover-cap{font-size:11px;color:var(--muted);margin-top:4px}
+  .pm-media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;margin-bottom:10px}
+  .pm-mi{position:relative;aspect-ratio:1;background:var(--bg2);border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;text-align:center;padding:4px;text-decoration:none}
+  .pm-mi img{width:100%;height:100%;object-fit:cover}
+  .pm-mi:hover{border-color:var(--gold-dim)}
+  .pm-mi-num{position:absolute;top:4px;left:4px;background:rgba(0,0,0,.65);color:var(--gold);font-size:10px;padding:1px 6px;border-radius:99px;font-weight:600;z-index:2}
+  .pm-footer{display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:14px}
+  .pm-footer .spacer{flex:1}
+  .btn.big{padding:11px 18px;font-size:15px}
+  @media (max-width:720px){
+    .pm-grid{grid-template-columns:1fr}
+    .pm-text-area{min-height:180px}
+  }
+
+  /* helpers */
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .small{font-size:12px;color:var(--muted)}
+  details{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+  details summary{cursor:pointer;color:var(--muted);font-size:13px}
+
+  @media (max-width:720px){
+    .cal{grid-template-columns:repeat(2,1fr)}
+    .setrow{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="brand">
+      <div class="egg">🥚</div>
+      <div>
+        <h1>Золотые яйца — пульт публикаций</h1>
+        <div class="sub" id="brandSub">фарфор, бизнес, любовь · единое окно для Дмитрия и Ани</div>
+      </div>
+    </div>
+    <div class="stats" id="statsBox"></div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="today" class="active">Сегодня</button>
+    <button data-tab="cal">Календарь</button>
+    <button data-tab="all">Все посты</button>
+    <button data-tab="anya">Аня</button>
+    <button data-tab="settings">Настройки</button>
+    <button data-tab="help">Как пользоваться</button>
+  </nav>
+
+  <div class="toolbar">
+    <select id="filterPlatform"><option value="">Все площадки</option></select>
+    <select id="filterStatus">
+      <option value="">Все статусы</option>
+      <option value="draft">Черновик</option>
+      <option value="review">На ревью</option>
+      <option value="ready">Готов</option>
+      <option value="published">Опубликован</option>
+    </select>
+    <select id="filterMode"><option value="">Все типы</option></select>
+    <div class="spacer"></div>
+    <span id="connStatus" class="pill" title="Состояние подключения к Google-таблице">⚙️ Локально</span>
+    <button class="btn ghost" id="btnReload" title="Обновить из таблицы">⟳</button>
+    <a id="btnMediaFolder" class="btn" target="_blank" rel="noopener" style="display:none" title="Открыть папку Google Drive с медиа">📁 Медиа в Drive</a>
+    <button class="btn" id="btnAdd">+ Новый пост</button>
+    <button class="btn ghost" id="btnExport">Экспорт ↑</button>
+    <button class="btn ghost" id="btnImport">Импорт ↓</button>
+    <button class="btn ghost danger" id="btnReset">Сброс</button>
+  </div>
+
+  <noscript>
+    <div style="background:#3a2a1a;border:1px solid #7a5a30;border-radius:12px;padding:16px;margin-bottom:14px;color:#f4ecd8">
+      <strong style="color:#e6b864">⚠️ Не работает JavaScript</strong><br>
+      Похоже, файл открыт в режиме предпросмотра (например, в iOS «Файлы»). Откройте его в браузере (Safari / Chrome) — тогда страница оживёт. Нажмите «Поделиться» → «Открыть в Safari».
+    </div>
+  </noscript>
+  <div id="jsErrorBox" style="display:none;background:#3a1a1a;border:1px solid #7a3030;border-radius:12px;padding:16px;margin-bottom:14px;color:#f4ecd8">
+    <strong style="color:#e07a5f">Ошибка отображения</strong>
+    <div id="jsErrorMsg" style="margin-top:6px;font-size:13px;font-family:monospace"></div>
+  </div>
+
+  <section id="sec-today" class="active"></section>
+  <section id="sec-cal"></section>
+  <section id="sec-all"></section>
+  <section id="sec-anya"></section>
+  <section id="sec-settings"></section>
+  <section id="sec-help"></section>
+
+</div>
+
+<div class="modal-bg" id="modal"><div class="modal" id="modalBody"></div></div>
+
+<input type="file" id="fileImport" accept="application/json" style="display:none">
+
+<script>
+/* ===== DATA ===== */
+const SEED_POSTS = [
+  {id:"ig-6",  platform:"Instagram", datetime:"2026-05-13T09:00:00", title:"Приветственный пост", mode:"В ленту"},
+  {id:"ig-7",  platform:"Instagram", datetime:"2026-05-13T19:00:00", title:"До премьеры остался 1 день", mode:"Пост + история"},
+  {id:"ig-8",  platform:"Instagram", datetime:"2026-05-13T14:00:00", title:"Трейлер 1", mode:"Reels (пробный)"},
+  {id:"ig-9",  platform:"Instagram", datetime:"2026-05-13T21:00:00", title:"Трейлер 2", mode:"Reels (пробный)"},
+  {id:"ig-10", platform:"Instagram", datetime:"2026-05-14T10:00:00", title:"1 серия", mode:"В ленту"},
+  {id:"ig-11", platform:"Instagram", datetime:"2026-05-14T17:00:00", title:"2 серия", mode:"В ленту"},
+  {id:"ig-12", platform:"Instagram", datetime:"2026-05-15T12:00:00", title:"Рилс 1", mode:"Reels (пробный)"},
+  {id:"ig-13", platform:"Instagram", datetime:"2026-05-16T10:00:00", title:"3 серия", mode:"В ленту"},
+  {id:"ig-14", platform:"Instagram", datetime:"2026-05-16T17:00:00", title:"4 серия", mode:"В ленту"},
+  {id:"ig-15", platform:"Instagram", datetime:"2026-05-17T12:00:00", title:"Рилс 2", mode:"Reels (пробный)"},
+  {id:"ig-16", platform:"Instagram", datetime:"2026-05-18T10:00:00", title:"5 серия", mode:"В ленту"},
+  {id:"ig-17", platform:"Instagram", datetime:"2026-05-18T17:00:00", title:"6 серия", mode:"В ленту"},
+  {id:"ig-18", platform:"Instagram", datetime:"2026-05-19T12:00:00", title:"Рилс 3", mode:"Reels (пробный)"},
+  {id:"ig-19", platform:"Instagram", datetime:"2026-05-20T10:00:00", title:"7 серия", mode:"В ленту"},
+  {id:"ig-20", platform:"Instagram", datetime:"2026-05-20T17:00:00", title:"8 серия", mode:"В ленту"},
+  {id:"ig-21", platform:"Instagram", datetime:"2026-05-21T12:00:00", title:"Рилс 4", mode:"Reels (пробный)"},
+  {id:"ig-22", platform:"Instagram", datetime:"2026-05-22T10:00:00", title:"9 серия", mode:"В ленту"},
+  {id:"ig-23", platform:"Instagram", datetime:"2026-05-22T17:00:00", title:"10 серия", mode:"В ленту"},
+  {id:"ig-24", platform:"Instagram", datetime:"2026-05-23T12:00:00", title:"Рилс 5", mode:"Reels (пробный)"},
+  {id:"ig-25", platform:"Instagram", datetime:"2026-05-23T19:00:00", title:"Рилс 6", mode:"Reels (пробный)"}
+];
+const DEFAULT_FIELDS = {
+  text:"", hashtags:"", media:"", cover:"", owner:"Аня",
+  status:"draft", // draft | review | ready | published
+  checks:{visual:false, text:false, geo:false, hashtags:false, link:false, sound:false}
+};
+const DEFAULT_SETTINGS = {
+  backendUrl:"",
+  links:{
+    Instagram:"https://www.instagram.com/goldeneggs_story/",
+    Facebook:"https://www.facebook.com/profile.php?id=61589148974034",
+    Telegram:"",
+    TikTok:"",
+    YouTube:"",
+    VK:""
+  },
+  mediaFolder:"",
+  baseHashtags:"#ЗолотыеЯйца #goldeneggs_story #премьера #сериал #фарфор #бизнес #любовь",
+  tagline:"фарфор, бизнес, любовь",
+  premiere:"2026-05-14"
+};
+const CHECK_LABELS = {
+  visual:"Медиа подобрано и в правильном формате (1:1 / 4:5 / 9:16)",
+  text:"Текст вычитан, опечаток нет",
+  geo:"Геолокация / отметки добавлены",
+  hashtags:"Хэштеги в первом комментарии или в конце поста",
+  link:"Ссылка в профиле обновлена (если нужно)",
+  sound:"Звук разрешён к публикации (для Reels)"
+};
+const PLATFORM_ACTIONS = {
+  Instagram:{open:"Открыть Instagram", url:"https://www.instagram.com/", create:"https://www.instagram.com/"},
+  Facebook:{open:"Открыть Facebook", url:"https://www.facebook.com/", create:"https://www.facebook.com/"},
+  Telegram:{open:"Открыть Telegram", url:"https://web.telegram.org/", create:"https://web.telegram.org/"},
+  TikTok:{open:"Открыть TikTok", url:"https://www.tiktok.com/upload", create:"https://www.tiktok.com/upload"},
+  YouTube:{open:"Открыть YouTube Studio", url:"https://studio.youtube.com/", create:"https://studio.youtube.com/"},
+  VK:{open:"Открыть VK", url:"https://vk.com/", create:"https://vk.com/"}
+};
+const STATUS_LABEL = {draft:"Черновик", review:"На ревью", ready:"Готов", published:"Опубликован"};
+const STATUS_CLASS = {draft:"", review:"warn", ready:"ok", published:"gold"};
+
+/* ===== STATE ===== */
+const LS_KEY = "goldeneggs_dashboard_v1";
+let state = loadState();
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(raw){ const s = JSON.parse(raw); s.settings = Object.assign({}, DEFAULT_SETTINGS, s.settings||{}); s.settings.links = Object.assign({}, DEFAULT_SETTINGS.links, s.settings.links||{}); return s; }
+  }catch(e){}
+  const posts = {};
+  SEED_POSTS.forEach(p => { posts[p.id] = Object.assign({}, DEFAULT_FIELDS, p, {checks:Object.assign({},DEFAULT_FIELDS.checks)}); });
+  return {posts, settings:JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), activeTab:"today"};
+}
+function saveState(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(_){} }
+
+/* ===== ONLINE MODE (Google Sheets через Apps Script) ===== */
+const isOnline = () => !!(state.settings && state.settings.backendUrl && /^https:\/\/script\.google\.com\//.test(state.settings.backendUrl));
+function setConn(label, cls){
+  const el = document.getElementById("connStatus");
+  if(!el) return;
+  el.textContent = label;
+  el.className = "pill " + (cls||"");
+}
+async function api(payload){
+  if(!isOnline()) throw new Error("Не задан URL бэкенда");
+  const res = await fetch(state.settings.backendUrl, {
+    method:"POST",
+    body: JSON.stringify(payload),
+    redirect:"follow"
+  });
+  let json;
+  try { json = await res.json(); } catch(e){ throw new Error("Бэкенд вернул не JSON. Возможно, URL неверный или скрипт не развёрнут как Web app для всех."); }
+  if(!json.ok){ throw new Error(json.error || "Ошибка бэкенда"); }
+  return json;
+}
+async function loadFromBackend({silent=false}={}){
+  if(!isOnline()){ setConn("⚙️ Локально",""); return false; }
+  setConn("⏳ Загрузка…","warn");
+  try{
+    const data = await api({action:"read"});
+    const posts = {};
+    (data.posts||[]).forEach(p => {
+      const id = "row-"+p.rowIndex;
+      posts[id] = Object.assign({}, DEFAULT_FIELDS, p, {
+        id, platform:"Instagram",
+        checks: Object.assign({}, DEFAULT_FIELDS.checks, p.checks||{}),
+        status: p.status || "draft"
+      });
+    });
+    state.posts = posts;
+    saveState();
+    render();
+    setConn("✓ Online · "+(Object.keys(posts).length)+" постов","ok");
+    if(!silent) flash("Загружено из Google-таблицы");
+    return true;
+  }catch(err){
+    setConn("⚠ "+err.message,"red");
+    if(!silent) alert("Не удалось подключиться к таблице:\n\n"+err.message+"\n\nПроверьте URL в Настройках.");
+    return false;
+  }
+}
+const pending = new Map();
+function pushField(rowIndex, field, value, debounceMs=600){
+  if(!isOnline() || !rowIndex) return;
+  const key = rowIndex+"|"+field;
+  if(pending.has(key)) clearTimeout(pending.get(key));
+  const t = setTimeout(async () => {
+    pending.delete(key);
+    try{
+      setConn("⏳ Сохранение…","warn");
+      await api({action:"update", rowIndex, field, value});
+      setConn("✓ Сохранено","ok");
+    }catch(err){
+      setConn("⚠ "+err.message,"red");
+    }
+  }, debounceMs);
+  pending.set(key, t);
+}
+async function pushCreate(post){
+  if(!isOnline()) return null;
+  setConn("⏳ Создание…","warn");
+  try{
+    const data = await api({action:"create", post});
+    setConn("✓ Создано","ok");
+    return data.rowIndex;
+  }catch(err){ setConn("⚠ "+err.message,"red"); return null; }
+}
+async function pushDelete(rowIndex){
+  if(!isOnline() || !rowIndex) return;
+  setConn("⏳ Удаление…","warn");
+  try{
+    await api({action:"delete", rowIndex});
+    setConn("✓ Удалено","ok");
+  }catch(err){ setConn("⚠ "+err.message,"red"); }
+}
+function rowIndexOf(p){
+  if(p && typeof p.rowIndex==="number") return p.rowIndex;
+  if(p && typeof p.id==="string" && p.id.startsWith("row-")) return parseInt(p.id.substring(4),10);
+  return null;
+}
+
+/* ===== HELPERS ===== */
+const $ = sel => document.querySelector(sel);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+const RU_DOW = ["вс","пн","вт","ср","чт","пт","сб"];
+const RU_MON = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+function pad(n){return String(n).padStart(2,"0")}
+function fmtDateTime(iso){
+  if(!iso) return "—";
+  const d = new Date(iso);
+  return `${pad(d.getDate())} ${RU_MON[d.getMonth()]}, ${RU_DOW[d.getDay()]} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function isoDate(iso){ if(!iso) return ""; return iso.substring(0,10); }
+function todayISO(){ const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function listPosts(){ return Object.values(state.posts).sort((a,b)=> (a.datetime||"").localeCompare(b.datetime||"")); }
+function applyFilters(posts){
+  const fp = $("#filterPlatform").value, fs = $("#filterStatus").value, fm = $("#filterMode").value;
+  return posts.filter(p => (!fp || p.platform===fp) && (!fs || p.status===fs) && (!fm || p.mode===fm));
+}
+function copy(text){ navigator.clipboard.writeText(text).then(()=>flash("Скопировано")); }
+function flash(msg){
+  const el=document.createElement("div");
+  el.textContent=msg;
+  el.style.cssText="position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--gold);color:#1b160c;padding:8px 16px;border-radius:99px;font-weight:600;z-index:100;box-shadow:0 6px 18px rgba(0,0,0,.4)";
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),1400);
+}
+
+/* ===== RENDER ===== */
+function render(){
+  renderStats(); renderFilters();
+  renderToday(); renderCal(); renderAll(); renderAnya(); renderSettings(); renderHelp();
+  updateMediaFolderBtn();
+  $("#brandSub").textContent = (state.settings.tagline||"") + " · единое окно для Дмитрия и Ани";
+}
+function updateMediaFolderBtn(){
+  const btn = document.getElementById("btnMediaFolder");
+  if(!btn) return;
+  const url = (state.settings.mediaFolder||"").trim();
+  if(url){ btn.href = url; btn.style.display = ""; }
+  else { btn.removeAttribute("href"); btn.style.display = "none"; }
+}
+
+function renderStats(){
+  const posts = listPosts();
+  const today = todayISO();
+  const todays = posts.filter(p => isoDate(p.datetime)===today);
+  const ready = posts.filter(p => p.status==="ready" || p.status==="published").length;
+  const published = posts.filter(p => p.status==="published").length;
+  const draft = posts.filter(p => p.status==="draft").length;
+  $("#statsBox").innerHTML = `
+    <div class="stat"><div class="n">${todays.length}</div><div class="l">на сегодня</div></div>
+    <div class="stat"><div class="n">${posts.length}</div><div class="l">всего постов</div></div>
+    <div class="stat"><div class="n">${ready}/${posts.length}</div><div class="l">готовы / опубл.</div></div>
+    <div class="stat"><div class="n">${draft}</div><div class="l">в черновике</div></div>
+  `;
+}
+
+function renderFilters(){
+  const platforms = [...new Set(listPosts().map(p=>p.platform))];
+  const modes = [...new Set(listPosts().map(p=>p.mode).filter(Boolean))];
+  const fp = $("#filterPlatform"), fm = $("#filterMode");
+  const fpv = fp.value, fmv = fm.value;
+  fp.innerHTML = `<option value="">Все площадки</option>` + platforms.map(p=>`<option ${p===fpv?"selected":""}>${p}</option>`).join("");
+  fm.innerHTML = `<option value="">Все типы</option>` + modes.map(m=>`<option ${m===fmv?"selected":""}>${m}</option>`).join("");
+}
+
+function postCard(p){
+  const link = state.settings.links[p.platform] || "";
+  const action = PLATFORM_ACTIONS[p.platform] || {open:"Открыть площадку", create:""};
+  const fullText = buildFullText(p);
+  const tags = p.hashtags || state.settings.baseHashtags;
+  const checks = Object.entries(CHECK_LABELS).map(([k,label])=>{
+    const done = !!(p.checks && p.checks[k]);
+    return `<label class="${done?'done':''}"><input type="checkbox" data-check="${k}" data-id="${p.id}" ${done?'checked':''}> ${label}</label>`;
+  }).join("");
+  const checkDone = Object.values(p.checks||{}).filter(Boolean).length;
+  const checkTotal = Object.keys(CHECK_LABELS).length;
+  const pct = Math.round(checkDone/checkTotal*100);
+  return `
+  <div class="card" data-id="${p.id}">
+    <div class="hdr">
+      <div>
+        <h3>${escape(p.title || "Без названия")}</h3>
+        <div class="meta">
+          <span class="pill gold">${p.platform}</span>
+          ${p.mode?`<span class="pill">${escape(p.mode)}</span>`:""}
+          <span>${fmtDateTime(p.datetime)}</span>
+        </div>
+      </div>
+      <div>
+        <select class="status-sel" data-id="${p.id}">
+          ${Object.entries(STATUS_LABEL).map(([k,v])=>`<option value="${k}" ${p.status===k?"selected":""}>${v}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <div class="small" style="margin-bottom:4px">🖼 Обложка (главное изображение)</div>
+      <input type="url" data-field="cover" data-id="${p.id}" value="${escape(p.cover||"")}" placeholder="https://drive.google.com/file/d/.../view">
+      <div id="cover-preview-${p.id}">${renderCoverPreview(p.cover)}</div>
+    </div>
+
+    <div>
+      <div class="small" style="margin-bottom:4px">📎 Картинки и видео — по одной ссылке на строку</div>
+      <textarea data-field="media" data-id="${p.id}" rows="2" placeholder="https://drive.google.com/file/d/.../view&#10;вторая ссылка...">${escape(p.media||"")}</textarea>
+      <div id="media-preview-${p.id}">${renderMediaPreview(parseMediaList(p.media))}</div>
+      <div class="field-hint">Загрузите файл в Google Drive → правой кнопкой «Поделиться» → «Доступ для всех, у кого есть ссылка» → скопируйте ссылку → вставьте сюда. Можно несколько (каждая на новой строке) — для карусели или сториз.</div>
+    </div>
+
+    <div>
+      <div class="small" style="margin-bottom:4px">✍️ Текст поста</div>
+      <textarea data-field="text" data-id="${p.id}" placeholder="Здесь Аня (или вы) пишет текст поста...">${escape(p.text||"")}</textarea>
+    </div>
+
+    <details>
+      <summary>#️⃣ Хэштеги · ответственный</summary>
+      <div style="margin-top:8px">
+        <div class="small">Хэштеги (если пусто — берутся базовые из настроек)</div>
+        <textarea data-field="hashtags" data-id="${p.id}" placeholder="${escape(state.settings.baseHashtags)}">${escape(p.hashtags||"")}</textarea>
+        <div class="small" style="margin-top:8px">Ответственный</div>
+        <input type="text" data-field="owner" data-id="${p.id}" value="${escape(p.owner||"")}" placeholder="Аня / Дмитрий / подрядчик">
+      </div>
+    </details>
+
+    <div>
+      <div class="row" style="justify-content:space-between;margin-bottom:6px">
+        <div class="small">Чек-лист публикации</div>
+        <div class="small">${checkDone}/${checkTotal}</div>
+      </div>
+      <div class="progress"><div style="width:${pct}%"></div></div>
+      <div class="checklist" style="margin-top:8px">${checks}</div>
+    </div>
+
+    <div class="actions">
+      <button class="btn primary publish-btn" data-id="${p.id}">🚀 Публикую</button>
+      <button class="btn copy-text" data-id="${p.id}">📋 Скопировать</button>
+      <button class="btn copy-tags" data-id="${p.id}">#️⃣ Хэштеги</button>
+      <button class="btn ghost danger del-post" data-id="${p.id}" title="Удалить">✕</button>
+    </div>
+  </div>`;
+}
+
+function buildFullText(p){
+  const tags = (p.hashtags || state.settings.baseHashtags || "").trim();
+  return (p.text||"").trim() + (tags?("\n\n"+tags):"");
+}
+function escape(s){ return String(s||"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+
+/* ===== MEDIA PREVIEW ===== */
+const DRIVE_ID_RE = /\/file\/d\/([a-zA-Z0-9_-]{10,})|[?&]id=([a-zA-Z0-9_-]{10,})|\/d\/([a-zA-Z0-9_-]{10,})/;
+function extractDriveId(url){
+  const m = String(url||"").match(DRIVE_ID_RE);
+  return m && (m[1]||m[2]||m[3]);
+}
+function mediaPreviewUrl(url){
+  const u = String(url||"").trim();
+  if(!u) return null;
+  const id = extractDriveId(u);
+  if(id) return `https://drive.google.com/thumbnail?id=${id}&sz=w400`;
+  if(/^https?:\/\/.+\.(jpe?g|png|gif|webp|avif|bmp)(\?.*)?$/i.test(u)) return u;
+  return null;
+}
+function parseMediaList(s){
+  return String(s||"").split(/\n+/).map(x=>x.trim()).filter(Boolean);
+}
+function renderMediaPreview(list){
+  if(!list.length) return `<div class="field-hint">Превью появится автоматически, когда добавите ссылку с открытым доступом «всем, у кого есть ссылка» (Google Drive) или прямую ссылку на картинку.</div>`;
+  return `<div class="media-preview">${list.map((u,i)=>{
+    const prev = mediaPreviewUrl(u);
+    if(prev){
+      return `<a class="mp-item" href="${escape(u)}" target="_blank" rel="noopener" title="${escape(u)}"><span class="mp-num">${i+1}</span><img src="${escape(prev)}" loading="lazy" onerror="this.style.display='none';this.parentElement.appendChild(Object.assign(document.createElement('span'),{textContent:'нет превью — открыть ссылку'}))"></a>`;
+    }
+    return `<a class="mp-item" href="${escape(u)}" target="_blank" rel="noopener" title="${escape(u)}"><span class="mp-num">${i+1}</span><span>ссылка ${i+1}</span></a>`;
+  }).join("")}</div>`;
+}
+function renderCoverPreview(url){
+  const prev = mediaPreviewUrl(url);
+  if(!prev) return "";
+  return `<div class="cover-preview"><a href="${escape(url)}" target="_blank" rel="noopener"><img src="${escape(prev)}" loading="lazy" onerror="this.parentElement.parentElement.style.display='none'"></a></div>`;
+}
+
+/* ===== PUBLISH MODAL ===== */
+function openPublishModal(postId){
+  const p = state.posts[postId];
+  if(!p) return;
+  const fullText = buildFullText(p);
+  const mediaList = parseMediaList(p.media);
+  const coverPrev = mediaPreviewUrl(p.cover);
+  const action = PLATFORM_ACTIONS[p.platform] || {open:"Открыть площадку", create:"#"};
+
+  const coverBlock = coverPrev
+    ? `<div class="pm-cover"><a href="${escape(p.cover)}" target="_blank" rel="noopener"><img src="${escape(coverPrev)}" alt="обложка"></a><div class="pm-cover-cap">обложка — клик откроет оригинал, там «правый клик → сохранить» или «копировать изображение»</div></div>`
+    : "";
+
+  const mediaBlock = mediaList.length
+    ? `<div class="pm-media-grid">${mediaList.map((u,i)=>{
+        const prev = mediaPreviewUrl(u);
+        return `<a class="pm-mi" href="${escape(u)}" target="_blank" rel="noopener" title="${escape(u)}"><span class="pm-mi-num">${i+1}</span>${prev?`<img src="${escape(prev)}" loading="lazy" onerror="this.style.display='none';this.parentElement.appendChild(Object.assign(document.createElement('span'),{textContent:'нет превью'}))">`:`<span>ссылка ${i+1}</span>`}</a>`;
+      }).join("")}</div>
+      <button class="btn pm-open-all" data-urls='${escape(JSON.stringify(mediaList))}'>📂 Открыть все картинки в новых вкладках</button>`
+    : "";
+
+  const noMedia = (!coverPrev && !mediaList.length)
+    ? `<div class="today-empty">Медиа ещё не прикреплено. <br><span class="small">Пусть Аня вставит ссылки в карточку.</span></div>`
+    : "";
+
+  const html = `
+    <div class="pm-head">
+      <div>
+        <div class="pm-title">${escape(p.title || "Без названия")}</div>
+        <div class="small" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+          <span class="pill gold">${escape(p.platform)}</span>
+          ${p.mode?`<span class="pill">${escape(p.mode)}</span>`:""}
+          <span class="pill ${STATUS_CLASS[p.status]||""}">${STATUS_LABEL[p.status]||p.status}</span>
+          <span>${fmtDateTime(p.datetime)}</span>
+        </div>
+      </div>
+      <button class="btn ghost" data-close-pm title="Закрыть">✕</button>
+    </div>
+
+    <div class="pm-grid">
+      <div>
+        <div class="row" style="gap:6px;margin-bottom:8px">
+          <button class="btn primary pm-copy-all" data-id="${p.id}">📋 Скопировать всё (текст + хэштеги)</button>
+        </div>
+        <div class="row" style="gap:6px;margin-bottom:8px">
+          <button class="btn pm-copy-text" data-id="${p.id}">📋 Только текст</button>
+          <button class="btn pm-copy-tags" data-id="${p.id}">#️⃣ Только хэштеги</button>
+        </div>
+        <textarea class="pm-text-area" readonly>${escape(fullText)}</textarea>
+        <div class="field-hint">Это то, что вставится в пост. Если хочется поправить — закройте окно и отредактируйте карточку.</div>
+      </div>
+      <div>
+        ${coverBlock}
+        ${mediaBlock}
+        ${noMedia}
+      </div>
+    </div>
+
+    <div class="pm-footer">
+      <a class="btn big" href="${action.create||"#"}" target="_blank" rel="noopener">↗ ${action.open||"Открыть площадку"}</a>
+      ${p.platform==="Instagram"?`<a class="btn big" href="https://www.facebook.com/?sk=composer" target="_blank" rel="noopener">↗ Открыть Facebook</a>`:""}
+      <div class="spacer"></div>
+      ${p.status!=="published"
+        ? `<button class="btn big primary" data-mark-published="${p.id}">✓ Опубликовано</button>`
+        : `<button class="btn big" data-mark-unpublish="${p.id}" title="Вернуть в «Готов»">↺ Не опубликован</button>`}
+    </div>
+  `;
+  $("#modalBody").innerHTML = html;
+  $("#modal").classList.add("show");
+}
+
+function closePublishModal(){
+  $("#modal").classList.remove("show");
+  $("#modalBody").innerHTML = "";
+}
+
+/* TODAY */
+function renderToday(){
+  const today = todayISO();
+  const all = applyFilters(listPosts());
+  const list = all.filter(p => isoDate(p.datetime)===today);
+  const root = $("#sec-today");
+  const premiereLine = state.settings.premiere ? premiereCountdown(state.settings.premiere) : "";
+  let html = premiereLine;
+  if(list.length){
+    html += `<h2 style="margin:8px 0 12px;font-size:18px">📌 Сегодня публикуем (${list.length})</h2>`;
+    html += `<div class="today-grid">${list.map(postCard).join("")}</div>`;
+  } else {
+    html += `<div class="today-empty" style="margin-bottom:18px">На сегодня публикаций не запланировано 🎉<br><span class="small">Самое время подготовить материалы на ближайшие дни ↓</span></div>`;
+  }
+  // upcoming (next 7 days, exclude today)
+  const upcoming = all.filter(p => {
+    const d = isoDate(p.datetime);
+    if(!d || d<=today) return false;
+    const diff = (new Date(d) - new Date(today))/(1000*60*60*24);
+    return diff<=7;
+  });
+  if(upcoming.length){
+    html += `<h2 style="margin:18px 0 12px;font-size:18px">⏭ Ближайшие 7 дней (${upcoming.length})</h2>`;
+    html += `<div class="today-grid">${upcoming.map(postCard).join("")}</div>`;
+  } else if(!list.length){
+    html += `<div class="today-empty">В ближайшую неделю постов в расписании нет.<br><span class="small">Загляните во вкладку «Все посты», чтобы увидеть полный список.</span></div>`;
+  }
+  root.innerHTML = html;
+}
+function premiereCountdown(dateStr){
+  const t = new Date(dateStr+"T00:00:00");
+  const now = new Date(); now.setHours(0,0,0,0);
+  const diff = Math.round((t-now)/(1000*60*60*24));
+  let msg;
+  if(diff>1) msg = `🎬 До премьеры — ${diff} ${plural(diff,"день","дня","дней")}`;
+  else if(diff===1) msg = `🎬 До премьеры — завтра!`;
+  else if(diff===0) msg = `🔥 Премьера сегодня!`;
+  else msg = `Премьера состоялась ${Math.abs(diff)} ${plural(Math.abs(diff),"день","дня","дней")} назад`;
+  return `<div style="background:linear-gradient(90deg,rgba(230,184,100,.15),transparent);border:1px solid var(--gold-dim);border-radius:12px;padding:12px 16px;margin-bottom:14px;color:var(--gold);font-weight:600">${msg}</div>`;
+}
+function plural(n,one,few,many){ n=Math.abs(n)%100; const n1=n%10; if(n>10&&n<20) return many; if(n1>1&&n1<5) return few; if(n1===1) return one; return many; }
+
+/* CAL */
+function renderCal(){
+  const posts = applyFilters(listPosts());
+  if(!posts.length){ $("#sec-cal").innerHTML = "<div class='today-empty'>Постов нет</div>"; return; }
+  const dates = posts.map(p => isoDate(p.datetime)).filter(Boolean);
+  if(!dates.length){ $("#sec-cal").innerHTML = "<div class='today-empty'>Нет дат</div>"; return; }
+  const min = new Date(dates.reduce((a,b)=>a<b?a:b)+"T00:00:00");
+  const max = new Date(dates.reduce((a,b)=>a>b?a:b)+"T00:00:00");
+  // align min to Monday
+  const startDow = (min.getDay()+6)%7; min.setDate(min.getDate()-startDow);
+  const days = [];
+  const cursor = new Date(min);
+  while(cursor<=max || days.length%7!==0){
+    days.push(new Date(cursor));
+    cursor.setDate(cursor.getDate()+1);
+    if(days.length>56) break;
+  }
+  const byDate = {};
+  posts.forEach(p => { const d = isoDate(p.datetime); if(!d) return; (byDate[d]=byDate[d]||[]).push(p); });
+  const today = todayISO();
+  const headers = ["пн","вт","ср","чт","пт","сб","вс"].map(d=>`<div class="dlabel" style="text-align:center;background:transparent">${d}</div>`).join("");
+  const cells = days.map(d => {
+    const ds = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    const evs = (byDate[ds]||[]).sort((a,b)=>(a.datetime||"").localeCompare(b.datetime||""));
+    const isToday = ds===today;
+    return `<div class="day ${isToday?'today':''}">
+      <div class="dlabel"><span class="dnum">${d.getDate()}</span><span>${RU_MON[d.getMonth()].slice(0,3)}</span></div>
+      ${evs.map(p=>`<div class="ev s-${p.status}" data-jump="${p.id}"><span class="t">${(p.datetime||"").substring(11,16)}</span>${escape(p.title)}</div>`).join("")}
+    </div>`;
+  }).join("");
+  $("#sec-cal").innerHTML = `<div class="cal" style="grid-template-columns:repeat(7,1fr);margin-bottom:8px">${headers}</div><div class="cal">${cells}</div>`;
+}
+
+/* ALL */
+function renderAll(){
+  const list = applyFilters(listPosts());
+  if(!list.length){ $("#sec-all").innerHTML = "<div class='today-empty'>Постов под выбранные фильтры нет</div>"; return; }
+  $("#sec-all").innerHTML = `<div class="post-grid">${list.map(postCard).join("")}</div>`;
+}
+
+/* ANYA */
+function renderAnya(){
+  const posts = listPosts();
+  const groups = {draft:[],review:[],ready:[],published:[]};
+  posts.forEach(p => (groups[p.status]||groups.draft).push(p));
+  const block = (title, key, hint, cls) => {
+    const items = groups[key];
+    if(!items.length) return `<div class="card"><h3>${title} <span class="pill ${cls}">0</span></h3><div class="small">${hint}</div></div>`;
+    return `<div class="card"><h3>${title} <span class="pill ${cls}">${items.length}</span></h3>
+      <div class="small">${hint}</div>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
+        ${items.map(p=>`<div class="row" style="justify-content:space-between;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:8px 10px">
+          <div><strong>${escape(p.title)}</strong> <span class="small">· ${fmtDateTime(p.datetime)}</span></div>
+          <button class="btn ghost jump" data-jump="${p.id}">Открыть</button>
+        </div>`).join("")}
+      </div>
+    </div>`;
+  };
+  $("#sec-anya").innerHTML = `
+    <div class="post-grid">
+      ${block("Черновики","draft","Аня готовит текст и медиа","red")}
+      ${block("На ревью","review","Дмитрий смотрит и подтверждает","warn")}
+      ${block("Готовы к публикации","ready","Можно публиковать в назначенное время","ok")}
+      ${block("Опубликованы","published","Архив","gold")}
+    </div>`;
+}
+
+/* SETTINGS */
+function renderSettings(){
+  const s = state.settings;
+  const linkRow = (name) => `
+    <div class="setrow">
+      <label>${name}</label>
+      <input type="url" data-setting-link="${name}" value="${escape(s.links[name]||"")}" placeholder="ссылка на ${name}">
+    </div>`;
+  $("#sec-settings").innerHTML = `
+    <div class="card">
+      <h3>Общие</h3>
+      <div class="setrow"><label>Тэглайн</label><input type="text" data-setting="tagline" value="${escape(s.tagline||"")}"></div>
+      <div class="setrow"><label>Дата премьеры</label><input type="text" data-setting="premiere" value="${escape(s.premiere||"")}" placeholder="YYYY-MM-DD"></div>
+      <div class="setrow"><label>Папка с медиа</label><input type="url" data-setting="mediaFolder" value="${escape(s.mediaFolder||"")}" placeholder="https://drive.google.com/drive/folders/..."></div>
+      <div class="setrow"><label>Базовые хэштеги</label><textarea data-setting="baseHashtags" rows="3">${escape(s.baseHashtags||"")}</textarea></div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="card">
+      <h3>Ссылки на площадки</h3>
+      <div class="small" style="margin-bottom:10px">Эти ссылки используются в кнопках «Открыть площадку» на карточках постов.</div>
+      ${Object.keys(PLATFORM_ACTIONS).map(linkRow).join("")}
+    </div>
+    <div style="height:14px"></div>
+    <div class="card">
+      <h3>🔗 Подключение к Google-таблице</h3>
+      <div class="small" style="margin-bottom:10px">Когда сюда вставлен URL опубликованного Apps Script, дашборд работает как «окно» в вашу таблицу: всё, что меняет Аня, появляется у вас и наоборот. Если поле пустое — работает локально, как блокнот.</div>
+      <div class="setrow">
+        <label>URL Apps Script</label>
+        <input type="url" data-setting="backendUrl" value="${escape(s.backendUrl||"")}" placeholder="https://script.google.com/macros/s/.../exec">
+      </div>
+      <div class="row" style="gap:8px;margin-top:8px">
+        <button class="btn primary" id="btnConnect">Подключить и загрузить</button>
+        <span class="small">Инструкция — во вкладке «Как пользоваться» внизу.</span>
+      </div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="card">
+      <h3>Ручная синхронизация (резервный вариант)</h3>
+      <div class="small">Если без Google-таблицы: кнопкой <strong>Экспорт ↑</strong> вверху скачиваете файл .json, отправляете второй стороне, она нажимает <strong>Импорт ↓</strong>.</div>
+    </div>`;
+}
+
+/* HELP */
+function renderHelp(){
+  $("#sec-help").innerHTML = `
+    <div class="card">
+      <h3>🔗 Как подключить Google-таблицу (один раз, ~5 минут)</h3>
+      <ol style="line-height:1.7">
+        <li>Откройте вашу Google-таблицу с расписанием (тот же документ, где Аня ведёт «инст»).</li>
+        <li>В меню сверху: <strong>Расширения → Apps Script</strong>. Откроется отдельная вкладка с редактором.</li>
+        <li>В редакторе удалите весь код, который там есть (обычно одна функция-заготовка).</li>
+        <li>Откройте файл <code>apps_script.gs</code>, который я вам прислал, скопируйте всё содержимое и вставьте в редактор. Нажмите <strong>сохранить</strong> (значок дискеты или Ctrl/Cmd + S). Имени проекту можно дать любое.</li>
+        <li>Сверху в редакторе выпадающий список функций — выберите <code>initSheet</code> и нажмите кнопку <strong>▶ Выполнить</strong>. Google спросит разрешения — выберите свой аккаунт → «Дополнительные настройки» → «Перейти к проекту (небезопасно)» → «Разрешить». Это нормально, разрешения нужны, чтобы скрипт мог менять <em>вашу</em> таблицу. После выполнения в таблице появятся новые колонки: Статус, Хэштеги, Ответственный, Чек-лист, Заметки.</li>
+        <li>Снова в редакторе сверху — кнопка <strong>Развернуть → Новое развертывание</strong>. Тип: <strong>Веб-приложение</strong>. Поля: «Запускать от имени: Я», «Кто имеет доступ: Все». Нажмите <strong>Развернуть</strong>.</li>
+        <li>Скопируйте появившуюся ссылку (оканчивается на <code>/exec</code>).</li>
+        <li>Вернитесь в пульт, вкладка <strong>Настройки</strong> → поле <strong>URL Apps Script</strong> → вставьте ссылку → нажмите <strong>«Подключить и загрузить»</strong>.</li>
+        <li>Готово. В правом верхнем углу должно появиться <span class="pill ok">✓ Online</span>. Все 20 постов подтянутся из таблицы. Любая правка теперь пишется в таблицу автоматически.</li>
+      </ol>
+      <div class="small" style="margin-top:10px">Аня делает то же самое со <em>своей</em> стороны: открывает <code>dashboard.html</code> в своём браузере, идёт в Настройки, вставляет тот же URL (вы ей перешлёте), жмёт «Подключить». Дальше — общая память: что меняет один, через ~30 секунд видит второй (или сразу — кнопкой <strong>⟳</strong>).</div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="card">
+      <h3>Как пользоваться пультом</h3>
+      <ol>
+        <li><strong>Сегодня</strong> — то, что нужно опубликовать сейчас + ближайшие 7 дней. Открываете карточку, «Скопировать пост», переходите по «Открыть Instagram/Facebook/…», вставляете, загружаете медиа из общей папки, публикуете. Возвращаетесь — ставите статус «Опубликован».</li>
+        <li><strong>Календарь</strong> — общая картина по неделям. Цветная полоска слева = статус: серая (черновик), жёлтая (на ревью), зелёная (готов), золотая зачёркнутая (опубликован).</li>
+        <li><strong>Все посты</strong> — редактирование текста, хэштегов, ссылок на медиа, ответственного. Здесь Аня заполняет содержимое.</li>
+        <li><strong>Аня</strong> — её рабочее окно: что в черновике, что ждёт ваших правок, что готово.</li>
+        <li><strong>Чек-лист</strong> на каждой карточке — публиковать строго после галочек.</li>
+        <li><strong>Настройки</strong> — URL Google-таблицы, ссылки на соцсети, папка с медиа, базовые хэштеги, дата премьеры.</li>
+        <li><strong>⟳</strong> в верхнем правом углу — обновить данные из таблицы (если Аня что-то правит прямо сейчас).</li>
+      </ol>
+    </div>
+    <div style="height:14px"></div>
+    <div class="card">
+      <h3>Если Google-таблицу подключать пока не хотите</h3>
+      <div class="small">Пульт работает и без неё — локально в браузере. Тогда синхронизироваться с Аней можно вручную: кнопкой <strong>Экспорт ↑</strong> скачиваете файл .json, отправляете ей, она нажимает <strong>Импорт ↓</strong>.</div>
+    </div>`;
+}
+
+/* ===== EVENTS ===== */
+$$("nav.tabs button").forEach(b => b.addEventListener("click", e => {
+  $$("nav.tabs button").forEach(x=>x.classList.remove("active"));
+  $$("section").forEach(s=>s.classList.remove("active"));
+  b.classList.add("active");
+  $("#sec-"+b.dataset.tab).classList.add("active");
+  state.activeTab = b.dataset.tab; saveState();
+}));
+
+["filterPlatform","filterStatus","filterMode"].forEach(id => {
+  document.getElementById(id).addEventListener("change", () => { renderToday(); renderCal(); renderAll(); });
+});
+
+document.addEventListener("click", e => {
+  const t = e.target.closest("button, a, [data-jump], [data-close-pm], [data-mark-published], [data-mark-unpublish]");
+  if(!t) return;
+  if(t.matches(".publish-btn")){
+    openPublishModal(t.dataset.id);
+  } else if(t.matches(".pm-copy-all")){
+    const p = state.posts[t.dataset.id]; copy(buildFullText(p));
+  } else if(t.matches(".pm-copy-text")){
+    const p = state.posts[t.dataset.id]; copy((p.text||"").trim());
+  } else if(t.matches(".pm-copy-tags")){
+    const p = state.posts[t.dataset.id]; copy((p.hashtags||state.settings.baseHashtags||"").trim());
+  } else if(t.matches(".pm-open-all")){
+    try{
+      const urls = JSON.parse(t.dataset.urls);
+      urls.forEach((u,i)=> setTimeout(()=> window.open(u, "_blank", "noopener"), i*120));
+    }catch(err){ alert("Не удалось открыть ссылки: "+err.message); }
+  } else if(t.matches("[data-close-pm]")){
+    closePublishModal();
+  } else if(t.matches("[data-mark-published]")){
+    const id = t.dataset.markPublished;
+    const p = state.posts[id]; if(!p) return;
+    p.status = "published"; saveState(); render();
+    const ri = rowIndexOf(p); if(ri) pushField(ri, "status", "published", 0);
+    closePublishModal(); flash("Помечено как опубликовано");
+  } else if(t.matches("[data-mark-unpublish]")){
+    const id = t.dataset.markUnpublish;
+    const p = state.posts[id]; if(!p) return;
+    p.status = "ready"; saveState(); render();
+    const ri = rowIndexOf(p); if(ri) pushField(ri, "status", "ready", 0);
+    closePublishModal(); flash("Возвращено в «Готов»");
+  } else if(t.matches(".copy-text")){
+    const p = state.posts[t.dataset.id]; copy(buildFullText(p));
+  } else if(t.matches(".copy-tags")){
+    const p = state.posts[t.dataset.id];
+    copy((p.hashtags||state.settings.baseHashtags||"").trim());
+  } else if(t.matches(".del-post")){
+    if(confirm("Удалить этот пост?")){
+      const p = state.posts[t.dataset.id];
+      const ri = rowIndexOf(p);
+      delete state.posts[t.dataset.id]; saveState(); render();
+      if(ri) pushDelete(ri);
+    }
+  } else if(t.matches("[data-jump]")){
+    const id = t.dataset.jump;
+    // switch to All and scroll
+    $$("nav.tabs button").forEach(x=>x.classList.remove("active"));
+    $$("section").forEach(s=>s.classList.remove("active"));
+    document.querySelector('nav.tabs button[data-tab="all"]').classList.add("active");
+    $("#sec-all").classList.add("active");
+    setTimeout(()=>{ const el = document.querySelector(`#sec-all .card[data-id="${id}"]`); if(el){ el.scrollIntoView({behavior:"smooth", block:"center"}); el.style.outline="2px solid var(--gold)"; setTimeout(()=>el.style.outline="",1500); }}, 60);
+  }
+});
+
+document.addEventListener("change", e => {
+  const t = e.target;
+  if(t.matches(".status-sel")){
+    const p = state.posts[t.dataset.id];
+    p.status = t.value; saveState(); render();
+    const ri = rowIndexOf(p); if(ri) pushField(ri, "status", t.value, 0);
+  } else if(t.matches("[data-check]")){
+    const p = state.posts[t.dataset.id];
+    p.checks = p.checks || {}; p.checks[t.dataset.check] = t.checked;
+    saveState(); renderToday(); renderAll(); renderAnya();
+    const ri = rowIndexOf(p); if(ri) pushField(ri, "checks", p.checks, 0);
+  } else if(t.matches("[data-setting-link]")){
+    state.settings.links[t.dataset.settingLink] = t.value.trim(); saveState();
+  } else if(t.matches("[data-setting]")){
+    state.settings[t.dataset.setting] = t.value; saveState(); renderToday(); renderAll();
+    if(t.dataset.setting === "mediaFolder") updateMediaFolderBtn();
+  }
+});
+
+const previewDebounce = new Map();
+function refreshPreview(id, field, value){
+  const key = id+"|"+field;
+  if(previewDebounce.has(key)) clearTimeout(previewDebounce.get(key));
+  previewDebounce.set(key, setTimeout(()=>{
+    previewDebounce.delete(key);
+    if(field === "media"){
+      const el = document.getElementById("media-preview-"+id);
+      if(el) el.innerHTML = renderMediaPreview(parseMediaList(value));
+    } else if(field === "cover"){
+      const el = document.getElementById("cover-preview-"+id);
+      if(el) el.innerHTML = renderCoverPreview(value);
+    }
+  }, 350));
+}
+document.addEventListener("input", e => {
+  const t = e.target;
+  if(t.matches("[data-field]")){
+    const p = state.posts[t.dataset.id];
+    p[t.dataset.field] = t.value; saveState();
+    const ri = rowIndexOf(p);
+    if(ri) pushField(ri, t.dataset.field, t.value, 800);
+    if(t.dataset.field === "media" || t.dataset.field === "cover"){
+      refreshPreview(p.id, t.dataset.field, t.value);
+    }
+  }
+});
+
+$("#btnAdd").addEventListener("click", async () => {
+  const dt = new Date(); dt.setHours(12,0,0,0);
+  const draft = { platform:"Instagram", mode:"В ленту", title:"Новый пост",
+                  datetime: dt.toISOString(), text:"", media:"", hashtags:"", owner:"Аня", status:"draft", checks:{}};
+  if(isOnline()){
+    const ri = await pushCreate(draft);
+    if(ri){
+      const id = "row-"+ri;
+      state.posts[id] = Object.assign({}, DEFAULT_FIELDS, draft, {id, rowIndex:ri, checks:Object.assign({},DEFAULT_FIELDS.checks)});
+      saveState(); render();
+      jumpToAll();
+    }
+  } else {
+    const id = "x-"+Date.now();
+    state.posts[id] = Object.assign({}, DEFAULT_FIELDS, draft, {id, checks:Object.assign({},DEFAULT_FIELDS.checks)});
+    saveState(); render();
+    jumpToAll();
+  }
+});
+function jumpToAll(){
+  $$("nav.tabs button").forEach(x=>x.classList.remove("active"));
+  $$("section").forEach(s=>s.classList.remove("active"));
+  document.querySelector('nav.tabs button[data-tab="all"]').classList.add("active");
+  $("#sec-all").classList.add("active");
+}
+
+$("#btnReload").addEventListener("click", async () => {
+  if(isOnline()){ await loadFromBackend(); }
+  else { render(); flash("Локальный режим — нечего тянуть"); }
+});
+document.addEventListener("click", async e => {
+  if(e.target && e.target.id === "btnConnect"){
+    const inp = document.querySelector('[data-setting="backendUrl"]');
+    if(inp){ state.settings.backendUrl = inp.value.trim(); saveState(); }
+    await loadFromBackend();
+  }
+});
+
+$("#btnExport").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(state,null,2)], {type:"application/json"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `goldeneggs_${todayISO()}.json`;
+  a.click();
+});
+$("#btnImport").addEventListener("click", () => $("#fileImport").click());
+$("#fileImport").addEventListener("change", e => {
+  const f = e.target.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try{
+      const data = JSON.parse(r.result);
+      if(data && data.posts){ state = data; state.settings = Object.assign({},DEFAULT_SETTINGS,state.settings||{}); state.settings.links = Object.assign({},DEFAULT_SETTINGS.links,state.settings.links||{}); saveState(); render(); flash("Импорт готов"); }
+    }catch(err){ alert("Не получилось прочитать файл: "+err.message); }
+  };
+  r.readAsText(f);
+  e.target.value="";
+});
+$("#btnReset").addEventListener("click", () => {
+  if(!confirm("Сбросить все локальные изменения и вернуть исходное расписание?")) return;
+  localStorage.removeItem(LS_KEY); state = loadState(); render();
+});
+
+/* close publish modal on backdrop click + Esc */
+document.getElementById("modal").addEventListener("click", e => {
+  if(e.target.id === "modal") closePublishModal();
+});
+document.addEventListener("keydown", e => {
+  if(e.key === "Escape" && document.getElementById("modal").classList.contains("show")) closePublishModal();
+});
+
+/* init */
+window.addEventListener("error", e => {
+  try {
+    const box = document.getElementById("jsErrorBox");
+    const msg = document.getElementById("jsErrorMsg");
+    if(box && msg){ box.style.display="block"; msg.textContent = (e.message||"") + (e.filename?` @ ${e.filename}:${e.lineno}`:""); }
+  } catch(_){}
+});
+try{
+  render();
+  if(state.activeTab){
+    const b = document.querySelector(`nav.tabs button[data-tab="${state.activeTab}"]`);
+    if(b){ b.click(); }
+  }
+  if(isOnline()){
+    loadFromBackend({silent:true});
+    setInterval(()=>{ if(isOnline() && !document.hidden) loadFromBackend({silent:true}); }, 45000);
+  } else {
+    setConn("⚙️ Локально","");
+  }
+}catch(err){
+  const box = document.getElementById("jsErrorBox");
+  const msg = document.getElementById("jsErrorMsg");
+  if(box && msg){ box.style.display="block"; msg.textContent = err.message + "\n" + (err.stack||""); }
+}
+</script>
+</body>
+</html>
