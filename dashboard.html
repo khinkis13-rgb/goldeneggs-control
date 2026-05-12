@@ -159,6 +159,8 @@
   .dropzone.drag-over .dz-hint{display:flex}
   .dz-uploading{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.7);color:var(--gold);padding:3px 10px;border-radius:99px;font-size:11px;display:none}
   .dropzone.uploading .dz-uploading{display:inline-block}
+  .dz-pick{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:6px 10px;background:var(--bg2);border:1px solid var(--line);color:var(--cream);border-radius:8px;cursor:pointer;font-size:13px}
+  .dz-pick:hover{border-color:var(--gold-dim);color:var(--gold)}
 
   /* ANYA focus mode */
   .anya-progress{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:14px}
@@ -257,6 +259,7 @@
 <div class="modal-bg" id="modal"><div class="modal" id="modalBody"></div></div>
 
 <input type="file" id="fileImport" accept="application/json" style="display:none">
+<input type="file" id="filePick" multiple style="display:none">
 
 <script>
 /* ===== DATA ===== */
@@ -888,12 +891,14 @@ function renderAnya(){
           <input type="url" data-field="cover${sufx}" data-id="${p.id}" value="${escape(p["cover"+sufx]||"")}" placeholder="как у IG, либо своя ссылка / перетащите файл сюда">
           <div class="dz-hint">⬇ перетащите файл — загрузим в Drive</div>
         </div>
+        <button class="dz-pick" data-pick-cover="${p.id}|${sufx}">📁 Выбрать с компьютера</button>
         <div id="cover-preview-${p.id}${sufx}">${renderCoverPreview(p["cover"+sufx])}</div>
         <div class="af-label" style="margin-top:10px">📎 Медиа для ${plat}</div>
         <div class="dropzone" data-field-media="${p.id}|${sufx}">
           <textarea data-field="media${sufx}" data-id="${p.id}" rows="2" placeholder="одна ссылка на строку, либо перетащите файлы сюда">${escape(p["media"+sufx]||"")}</textarea>
           <div class="dz-hint">⬇ перетащите файлы — каждый добавится новой строкой</div>
         </div>
+        <button class="dz-pick" data-pick-media="${p.id}|${sufx}">📁 Выбрать файлы с компьютера</button>
         <div id="media-preview-${p.id}${sufx}">${renderMediaPreview(parseMediaList(p["media"+sufx]))}</div>
         <div class="af-label" style="margin-top:10px">✍️ Текст для ${plat}</div>
         <textarea data-field="text${sufx}" data-id="${p.id}" placeholder="как у IG, либо свой текст">${escape(p["text"+sufx]||"")}</textarea>
@@ -922,6 +927,7 @@ function renderAnya(){
           <input type="url" data-field="cover" data-id="${p.id}" value="${escape(p.cover||"")}" placeholder="https://drive.google.com/file/d/.../view  или перетащите файл сюда">
           <div class="dz-hint">⬇ перетащите файл — загрузим в Drive</div>
         </div>
+        <button class="dz-pick" data-pick-cover="${p.id}|">📁 Выбрать с компьютера</button>
         <div id="cover-preview-${p.id}">${renderCoverPreview(p.cover)}</div>
       </div>
 
@@ -931,8 +937,9 @@ function renderAnya(){
           <textarea data-field="media" data-id="${p.id}" rows="2" placeholder="https://drive.google.com/file/d/.../view&#10;вторая ссылка...&#10;или перетащите файлы сюда">${escape(p.media||"")}</textarea>
           <div class="dz-hint">⬇ перетащите файлы — каждый добавится новой строкой</div>
         </div>
+        <button class="dz-pick" data-pick-media="${p.id}|">📁 Выбрать файлы с компьютера</button>
         <div id="media-preview-${p.id}">${renderMediaPreview(parseMediaList(p.media))}</div>
-        <div class="field-hint">Drive → правой кнопкой «Поделиться» → «Доступ для всех» → ссылку сюда. Или просто перетащите файл — пульт загрузит сам.</div>
+        <div class="field-hint">Drive → «Поделиться» → «Доступ для всех» → ссылку сюда. Или перетащите файл / нажмите «Выбрать с компьютера» — пульт загрузит сам.</div>
       </div>
 
       <div class="af-block">
@@ -1344,6 +1351,50 @@ async function uploadFileToDrive(file){
   return res.url;
 }
 
+/* Общая загрузка списка файлов в конкретное поле поста */
+async function ingestFiles(files, postId, kind /* "cover"|"media" */, sufx, dz){
+  files = Array.from(files||[]); if(!files.length) return;
+  const p = state.posts[postId]; if(!p){ alert("Не нашёл пост"); return; }
+  const fieldName = kind + (sufx||"");
+  if(dz){
+    dz.classList.add("uploading");
+    if(!dz.querySelector(".dz-uploading")){
+      const tag = document.createElement("div");
+      tag.className = "dz-uploading"; tag.textContent = "⏳";
+      dz.appendChild(tag);
+    }
+  }
+  try{
+    for(let i=0;i<files.length;i++){
+      const file = files[i];
+      if(dz) dz.querySelector(".dz-uploading").textContent = `⏳ ${i+1}/${files.length}`;
+      else setConn(`⏳ ${i+1}/${files.length} · ${file.name}`,"warn");
+      const url = await uploadFileToDrive(file);
+      if(!url) continue;
+      if(kind === "cover"){
+        p[fieldName] = url;
+        const inp = dz && dz.querySelector('input[data-field]'); if(inp) inp.value = url;
+        else { const el = document.querySelector(`input[data-field="${fieldName}"][data-id="${postId}"]`); if(el) el.value = url; }
+      } else {
+        const cur = (p[fieldName]||"").trim();
+        p[fieldName] = cur ? cur + "\n" + url : url;
+        const ta = dz && dz.querySelector('textarea[data-field]'); if(ta) ta.value = p[fieldName];
+        else { const el = document.querySelector(`textarea[data-field="${fieldName}"][data-id="${postId}"]`); if(el) el.value = p[fieldName]; }
+      }
+      saveState();
+      const ri = rowIndexOf(p); if(ri) pushField(ri, fieldName, p[fieldName], 0);
+      refreshPreview(p.id, kind, p[fieldName], sufx||"");
+    }
+    flash("Загружено в Drive");
+    updateAnyaProgressLight();
+  } catch(err){
+    alert("Не удалось загрузить: " + err.message);
+    setConn("⚠ "+err.message,"red");
+  } finally {
+    if(dz) dz.classList.remove("uploading");
+  }
+}
+
 /* Drag&drop поверх dropzone-обёрток вокруг cover input и media textarea */
 document.addEventListener("dragover", e => {
   const dz = e.target.closest(".dropzone"); if(!dz) return;
@@ -1360,42 +1411,44 @@ document.addEventListener("drop", async e => {
   const isCover = dz.hasAttribute("data-field-cover");
   const meta = (dz.getAttribute("data-field-cover") || dz.getAttribute("data-field-media") || "");
   const [postId, sufx] = meta.split("|");
+  await ingestFiles(files, postId, isCover ? "cover" : "media", sufx||"", dz);
+});
+
+/* File picker через кнопку «📁 Выбрать с компьютера» */
+let _pickContext = null; // {postId, kind, sufx, dz}
+document.addEventListener("click", e => {
+  const btn = e.target.closest("[data-pick-cover], [data-pick-media]");
+  if(!btn) return;
+  const isCover = btn.hasAttribute("data-pick-cover");
+  const meta = (btn.getAttribute("data-pick-cover") || btn.getAttribute("data-pick-media") || "");
+  const [postId, sufx] = meta.split("|");
   const fieldName = (isCover ? "cover" : "media") + (sufx||"");
-  const p = state.posts[postId]; if(!p){ alert("Не нашёл пост"); return; }
-  dz.classList.add("uploading");
-  if(!dz.querySelector(".dz-uploading")) {
-    const tag = document.createElement("div");
-    tag.className = "dz-uploading"; tag.textContent = "⏳";
-    dz.appendChild(tag);
+  // подбираем соседнюю dropzone (если найдётся — для прогресс-индикатора)
+  let dz = null;
+  const card = btn.closest(".anya-focus, .card");
+  if(card){
+    const selector = isCover ? `.dropzone[data-field-cover="${meta}"]` : `.dropzone[data-field-media="${meta}"]`;
+    dz = card.querySelector(selector);
   }
-  try{
-    for(let i=0;i<files.length;i++){
-      const file = files[i];
-      dz.querySelector(".dz-uploading").textContent = `⏳ ${i+1}/${files.length}`;
-      const url = await uploadFileToDrive(file);
-      if(!url) continue;
-      if(isCover){
-        // cover — одна ссылка, перезаписываем
-        p[fieldName] = url;
-        const inp = dz.querySelector('input[data-field]'); if(inp) inp.value = url;
-      } else {
-        // media — добавляем каждый файл новой строкой
-        const cur = (p[fieldName]||"").trim();
-        p[fieldName] = cur ? cur + "\n" + url : url;
-        const ta = dz.querySelector('textarea[data-field]'); if(ta) ta.value = p[fieldName];
-      }
-      saveState();
-      const ri = rowIndexOf(p); if(ri) pushField(ri, fieldName, p[fieldName], 0);
-      refreshPreview(p.id, fieldName.startsWith("cover") ? "cover" : "media", p[fieldName], sufx||"");
-    }
-    flash("Загружено в Drive");
-    updateAnyaProgressLight();
-  } catch(err){
-    alert("Не удалось загрузить: " + err.message);
-    setConn("⚠ "+err.message,"red");
-  } finally {
-    dz.classList.remove("uploading");
+  const pick = document.getElementById("filePick");
+  // Один пикер на всех — для cover только одно изображение, для media — несколько
+  if(isCover){
+    pick.accept = "image/*,video/*";
+    pick.multiple = false;
+  } else {
+    pick.accept = "image/*,video/*";
+    pick.multiple = true;
   }
+  _pickContext = {postId, kind: isCover ? "cover" : "media", sufx: sufx||"", dz};
+  pick.value = "";  // чтобы повторный выбор того же файла триггерил change
+  pick.click();
+});
+document.getElementById("filePick").addEventListener("change", async e => {
+  const ctx = _pickContext; _pickContext = null;
+  if(!ctx) return;
+  const files = Array.from(e.target.files||[]);
+  e.target.value = "";
+  await ingestFiles(files, ctx.postId, ctx.kind, ctx.sufx, ctx.dz);
 });
 
 /* close publish modal on backdrop click + Esc */
