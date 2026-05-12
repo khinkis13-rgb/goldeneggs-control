@@ -48,6 +48,14 @@
   nav.tabs button:hover{color:var(--cream)}
 
   .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .toolbar.toolbar-minimal > select,
+  .toolbar.toolbar-minimal > #btnAdd,
+  .toolbar.toolbar-minimal > #btnMediaFolder{display:none !important}
+  .toolbar:not(.toolbar-all) > #btnAdd{display:none}
+  .toolbar.toolbar-all #btnAdd{display:inline-flex}
+  #btnReload{font-size:18px;line-height:1;padding:7px 12px;min-width:38px}
+  #btnReload.spin{animation:spin 1s linear infinite}
+  @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
   .toolbar select{background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--txt);padding:7px 10px}
   .toolbar .spacer{flex:1}
 
@@ -275,7 +283,7 @@
     <button data-tab="help">Как пользоваться</button>
   </nav>
 
-  <div class="toolbar">
+  <div class="toolbar" id="toolbar">
     <select id="filterPlatform"><option value="">Все площадки</option></select>
     <select id="filterStatus">
       <option value="">Все статусы</option>
@@ -286,13 +294,10 @@
     </select>
     <select id="filterMode"><option value="">Все типы</option></select>
     <div class="spacer"></div>
-    <span id="connStatus" class="pill" title="Состояние подключения к Google-таблице">⚙️ Локально</span>
-    <button class="btn ghost" id="btnReload" title="Обновить из таблицы">⟳</button>
+    <span id="connStatus" class="pill" title="Google-таблица не подключена — данные хранятся только в этом браузере. Зайдите в «Настройки», чтобы подключить Sheets.">🔌 Не подключено</span>
+    <button class="btn ghost" id="btnReload" title="Обновить данные из Google-таблицы">⟳</button>
     <a id="btnMediaFolder" class="btn" target="_blank" rel="noopener" style="display:none" title="Открыть папку Google Drive с медиа">📁 Медиа в Drive</a>
-    <button class="btn" id="btnAdd">+ Новый пост</button>
-    <button class="btn ghost" id="btnExport">Экспорт ↑</button>
-    <button class="btn ghost" id="btnImport">Импорт ↓</button>
-    <button class="btn ghost danger" id="btnReset">Сброс</button>
+    <button class="btn" id="btnAdd" title="Создать пост вне расписания — например, срочный анонс">+ Новый пост</button>
   </div>
 
   <noscript>
@@ -318,7 +323,6 @@
 <div class="modal-bg" id="modal"><div class="modal" id="modalBody"></div></div>
 <div class="lightbox" id="lightbox"><div class="lb-stage" id="lbStage"></div></div>
 
-<input type="file" id="fileImport" accept="application/json" style="display:none">
 <input type="file" id="filePick" multiple style="display:none">
 
 <script>
@@ -451,8 +455,10 @@ async function api(payload){
   return json;
 }
 async function loadFromBackend({silent=false}={}){
-  if(!isOnline()){ setConn("⚙️ Локально",""); return false; }
+  if(!isOnline()){ setConn("🔌 Не подключено",""); return false; }
   setConn("⏳ Загрузка…","warn");
+  const reloadBtn = document.getElementById("btnReload");
+  if(reloadBtn) reloadBtn.classList.add("spin");
   try{
     const data = await api({action:"read"});
     const posts = {};
@@ -477,6 +483,8 @@ async function loadFromBackend({silent=false}={}){
     setConn("⚠ "+err.message,"red");
     if(!silent) alert("Не удалось подключиться к таблице:\n\n"+err.message+"\n\nПроверьте URL в Настройках.");
     return false;
+  }finally{
+    if(reloadBtn) reloadBtn.classList.remove("spin");
   }
 }
 const pending = new Map();
@@ -1084,7 +1092,6 @@ function renderAnya(){
         ${uploaderCover(p.id, sufx, p["cover"+sufx]||"", "🖼 Обложка для "+plat)}
         <div style="height:10px"></div>
         ${uploaderMedia(p.id, sufx, p["media"+sufx]||"", "📎 Медиа для "+plat)}
-        <div id="media-preview-${p.id}${sufx}">${renderMediaPreview(parseMediaList(p["media"+sufx]))}</div>
         <div class="af-label" style="margin-top:10px">✍️ Текст для ${plat}</div>
         <textarea data-field="text${sufx}" data-id="${p.id}" placeholder="как у IG, либо свой текст">${escape(p["text"+sufx]||"")}</textarea>
         <div class="af-label" style="margin-top:10px">#️⃣ Хэштеги для ${plat}</div>
@@ -1222,8 +1229,8 @@ function renderSettings(){
     </div>
     <div style="height:14px"></div>
     <div class="card">
-      <h3>Ручная синхронизация (резервный вариант)</h3>
-      <div class="small">Если без Google-таблицы: кнопкой <strong>Экспорт ↑</strong> вверху скачиваете файл .json, отправляете второй стороне, она нажимает <strong>Импорт ↓</strong>.</div>
+      <h3>Бэкап и история</h3>
+      <div class="small">Источник правды — Google-таблица. История версий и откат хранятся самой Google: в таблице меню <strong>Файл → История версий → Смотреть историю версий</strong>. Любую правку можно вернуть оттуда — без отдельных файлов и кнопок.</div>
     </div>`;
 }
 
@@ -1259,33 +1266,65 @@ function renderHelp(){
     </div>
     <div style="height:14px"></div>
     <div class="card">
-      <h3>Как пользоваться пультом</h3>
-      <ol>
-        <li><strong>Сегодня</strong> — то, что нужно опубликовать сейчас + ближайшие 7 дней. Открыли карточку → <strong>🚀 Публикую</strong> → скопировали текст, открыли соцсеть, вставили, медиа берёте отсюда же. Возвращаетесь — «✓ Опубликовано».</li>
+      <h3>Вкладки пульта</h3>
+      <ol style="line-height:1.7">
+        <li><strong>Сегодня</strong> — главная для Дмитрия. Что нужно опубликовать сегодня и в ближайшие 7 дней. Открыли карточку → <strong>🚀 Публикую</strong> → скопировали текст, открыли соцсеть, вставили, картинки — отсюда же. Вернулись — «✓ Опубликовано».</li>
         <li><strong>Календарь</strong> — общая картина по неделям. Цветная полоска слева = статус: серая (черновик), жёлтая (на ревью), зелёная (готов), золотая зачёркнутая (опубликован).</li>
-        <li><strong>Все посты</strong> — общий редактор: тексты, хэштеги, медиа, статусы, чек-листы.</li>
-        <li><strong>Аня</strong> — её фокус-режим: одна карточка в работе, прогресс «X из Y», навигация по постам.</li>
-        <li><strong>Картинки</strong> — перетащите файл в зону загрузки или кликните «нажмите чтобы выбрать». Пульт сам загрузит в вашу папку Drive и подставит ссылку. Превью кликабельны — клик увеличивает на весь экран.</li>
-        <li><strong>Платформы</strong> — чипы «Куда постим» вверху карточки. Если для какой-то платформы нужен другой текст или картинка — раскройте блок «✏️ Свой контент для …».</li>
-        <li><strong>Чек-лист</strong> — свёрнут по умолчанию, открывает Дмитрий перед публикацией.</li>
-        <li><strong>Настройки</strong> — URL Apps Script, ссылки на соцсети, общая папка Drive, базовые хэштеги, дата премьеры.</li>
-        <li><strong>⟳</strong> в верхнем правом углу — обновить данные из таблицы.</li>
+        <li><strong>Все посты</strong> — общий редактор всех 20 постов: текст, хэштеги, медиа, статусы, платформы.</li>
+        <li><strong>Аня</strong> — её фокус-режим. Один пост на экране, прогресс «Заполнено X из 20», полоска точек и кнопки «← Предыдущий / → Следующий незаполненный». Когда пост готов — «✓ Готов — передать Дмитрию на ревью».</li>
+        <li><strong>Настройки</strong> — URL Apps Script, папка Drive, базовые хэштеги, ссылки на соцсети.</li>
       </ol>
     </div>
     <div style="height:14px"></div>
     <div class="card">
-      <h3>Если Google-таблицу подключать пока не хотите</h3>
-      <div class="small">Пульт работает и без неё — локально в браузере. Тогда синхронизироваться с Аней можно вручную: кнопкой <strong>Экспорт ↑</strong> скачиваете файл .json, отправляете ей, она нажимает <strong>Импорт ↓</strong>.</div>
+      <h3>Как заполнить пост (Аня)</h3>
+      <ol style="line-height:1.7">
+        <li><strong>Перетащите картинку</strong> прямо в поле «Обложка» или «Медиа» — пульт сам загрузит её в общую папку Drive и подставит ссылку. Можно несколько файлов сразу в «Медиа» — будет карусель.</li>
+        <li><strong>Текст и хэштеги</strong> — пишете прямо в карточке. Всё сохраняется автоматически.</li>
+        <li><strong>Куда постим</strong> — чипы платформ сверху. По умолчанию Instagram + Facebook. Можно поставить галочки на Telegram, TikTok, YouTube, VK.</li>
+        <li><strong>Свой текст/картинка для платформы</strong> — раскройте блок «✏️ Свой контент для …» под чипами. Если оставить пустым — для этой платформы возьмётся базовый текст/картинка сверху.</li>
+        <li><strong>Готов</strong> — кнопка «✓ Готов — передать Дмитрию на ревью» появляется автоматически, когда есть и текст, и картинка.</li>
+      </ol>
+    </div>
+    <div style="height:14px"></div>
+    <div class="card">
+      <h3>Как опубликовать пост (Дмитрий)</h3>
+      <ol style="line-height:1.7">
+        <li>Вкладка <strong>Сегодня</strong> → нужная карточка → <strong>🚀 Публикую</strong>.</li>
+        <li>В модалке — табы платформ (IG / FB / TG / …). Под каждой — свой текст и медиа.</li>
+        <li>Три кнопки копирования: «Всё», «Только текст», «Только хэштеги».</li>
+        <li>«📂 Открыть все картинки в новых вкладках» — откроет полноразмерные изображения для скачивания.</li>
+        <li>Кнопка площадки (Instagram / Facebook / …) — откроет соцсеть. Вставили скопированное — опубликовали.</li>
+        <li>Вернулись в пульт → <strong>✓ Опубликовано</strong>. Статус меняется, пост уходит в архив.</li>
+      </ol>
+      <div class="small" style="margin-top:8px">Если ошиблись — на опубликованной карточке есть кнопка <strong>↺ Не опубликован</strong>.</div>
+    </div>
+    <div style="height:14px"></div>
+    <div class="card">
+      <h3>Полезное</h3>
+      <ul style="line-height:1.7">
+        <li><strong>⟳</strong> в верхнем правом — обновить данные из таблицы вручную. Автообновление — каждые 45 секунд.</li>
+        <li><strong>📁 Медиа в Drive</strong> — открывает общую папку с картинками (видна, когда URL папки заполнен в Настройках).</li>
+        <li><strong>Превью картинок</strong> кликабельны — клик увеличивает на весь экран, стрелками листаете между ними.</li>
+        <li><strong>Чек-лист</strong> в карточке свёрнут по умолчанию — раскрывайте перед публикацией, чтобы пройтись по пунктам.</li>
+      </ul>
     </div>`;
 }
 
 /* ===== EVENTS ===== */
+function applyToolbarMode(tab){
+  const tb = document.getElementById("toolbar");
+  if(!tb) return;
+  tb.classList.toggle("toolbar-minimal", tab === "anya");
+  tb.classList.toggle("toolbar-all", tab === "all");
+}
 $$("nav.tabs button").forEach(b => b.addEventListener("click", e => {
   $$("nav.tabs button").forEach(x=>x.classList.remove("active"));
   $$("section").forEach(s=>s.classList.remove("active"));
   b.classList.add("active");
   $("#sec-"+b.dataset.tab).classList.add("active");
   state.activeTab = b.dataset.tab; saveState();
+  applyToolbarMode(state.activeTab);
 }));
 
 ["filterPlatform","filterStatus","filterMode"].forEach(id => {
@@ -1413,13 +1452,7 @@ function refreshPreview(id, kind, value, sufx){
   if(previewDebounce.has(key)) clearTimeout(previewDebounce.get(key));
   previewDebounce.set(key, setTimeout(()=>{
     previewDebounce.delete(key);
-    if(kind === "media"){
-      const el = document.getElementById("media-preview-"+id+suff);
-      if(el) el.innerHTML = renderMediaPreview(parseMediaList(value));
-    } else if(kind === "cover"){
-      const el = document.getElementById("cover-preview-"+id+suff);
-      if(el) el.innerHTML = renderCoverPreview(value);
-    }
+    refreshPreviewImmediate(id, kind, value, suff);
   }, 350));
 }
 function fieldKind(field){
@@ -1480,31 +1513,6 @@ document.addEventListener("click", async e => {
     if(inp){ state.settings.backendUrl = inp.value.trim(); saveState(); }
     await loadFromBackend();
   }
-});
-
-$("#btnExport").addEventListener("click", () => {
-  const blob = new Blob([JSON.stringify(state,null,2)], {type:"application/json"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `goldeneggs_${todayISO()}.json`;
-  a.click();
-});
-$("#btnImport").addEventListener("click", () => $("#fileImport").click());
-$("#fileImport").addEventListener("change", e => {
-  const f = e.target.files[0]; if(!f) return;
-  const r = new FileReader();
-  r.onload = () => {
-    try{
-      const data = JSON.parse(r.result);
-      if(data && data.posts){ state = data; state.settings = Object.assign({},DEFAULT_SETTINGS,state.settings||{}); state.settings.links = Object.assign({},DEFAULT_SETTINGS.links,state.settings.links||{}); saveState(); render(); flash("Импорт готов"); }
-    }catch(err){ alert("Не получилось прочитать файл: "+err.message); }
-  };
-  r.readAsText(f);
-  e.target.value="";
-});
-$("#btnReset").addEventListener("click", () => {
-  if(!confirm("Сбросить все локальные изменения и вернуть исходное расписание?")) return;
-  localStorage.removeItem(LS_KEY); state = loadState(); render();
 });
 
 /* ===== LIGHTBOX ===== */
@@ -1742,16 +1750,16 @@ async function ingestFiles(files, postId, kind /* "cover"|"media" */, sufx, uplo
   }
 }
 
-/* Немедленный (без debounce) refresh превью — нужен после загрузки, чтобы убрать ghost'ы */
+/* Немедленный (без debounce) refresh превью — нужен после загрузки, чтобы убрать ghost'ы.
+   Одни и те же id могут встретиться в нескольких секциях (#sec-today / #sec-all / #sec-anya),
+   поэтому обновляем ВСЕ совпавшие узлы, а не только первый. */
 function refreshPreviewImmediate(id, kind, value, sufx){
   const suff = sufx || "";
-  if(kind === "media"){
-    const el = document.getElementById("media-preview-"+id+suff);
-    if(el) el.innerHTML = renderMediaPreview(parseMediaList(value));
-  } else if(kind === "cover"){
-    const el = document.getElementById("cover-preview-"+id+suff);
-    if(el) el.innerHTML = renderCoverPreview(value);
-  }
+  const prefix = kind === "media" ? "media-preview-" : kind === "cover" ? "cover-preview-" : null;
+  if(!prefix) return;
+  const html = kind === "media" ? renderMediaPreview(parseMediaList(value)) : renderCoverPreview(value);
+  const sel = `[id="${prefix}${id}${suff}"]`;
+  document.querySelectorAll(sel).forEach(el => { el.innerHTML = html; });
 }
 
 /* Drag&drop + клик по .uploader */
@@ -1877,11 +1885,12 @@ try{
     const b = document.querySelector(`nav.tabs button[data-tab="${state.activeTab}"]`);
     if(b){ b.click(); }
   }
+  applyToolbarMode(state.activeTab);
   if(isOnline()){
     loadFromBackend({silent:true});
     setInterval(()=>{ if(isOnline() && !document.hidden) loadFromBackend({silent:true}); }, 45000);
   } else {
-    setConn("⚙️ Локально","");
+    setConn("🔌 Не подключено","");
   }
 }catch(err){
   const box = document.getElementById("jsErrorBox");
