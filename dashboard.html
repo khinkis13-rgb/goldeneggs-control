@@ -205,6 +205,8 @@
   .file-card .fc-thumb-wrap .cp-del:hover{background:var(--danger);color:#1b160c}
 
   /* Ручная ссылка (свёрнутый блок) */
+  .add-media-btn{margin-top:8px;width:100%;border:1px dashed var(--line);background:transparent;color:var(--muted);padding:10px;text-align:center}
+  .add-media-btn:hover{border-color:var(--gold-dim);color:var(--gold);background:rgba(230,184,100,.04)}
   .manual-link{margin-top:8px}
   .manual-link summary{font-size:12px;color:var(--muted);padding:4px 0}
   .manual-link input,.manual-link textarea{margin-top:6px;font-size:13px}
@@ -625,19 +627,13 @@ function postCard(p){
     <div>
       <div class="small" style="margin-bottom:4px">🖼 Обложка (главное изображение)</div>
       <div id="cover-preview-${p.id}">${renderCoverPreview(p.cover)}</div>
-      <details class="manual-link" ${p.cover?"":"open"}>
-        <summary>${p.cover?"🔗 Изменить ссылку вручную":"➕ Вставить ссылку на обложку"}</summary>
-        <input type="url" data-field="cover" data-id="${p.id}" value="${escape(p.cover||"")}" placeholder="https://drive.google.com/file/d/.../view">
-      </details>
+      <button class="btn ghost add-media-btn" data-anya-open="${p.id}" data-add-kind="cover" ${p.cover?"hidden":""}>➕ Добавить обложку в режиме Ани</button>
     </div>
 
     <div>
       <div class="small" style="margin-bottom:4px">📎 Картинки и видео</div>
       <div id="media-preview-${p.id}">${renderMediaPreview(parseMediaList(p.media))}</div>
-      <details class="manual-link" ${p.media?"":"open"}>
-        <summary>${p.media?"🔗 Изменить ссылки вручную":"➕ Вставить ссылки на картинки/видео"}</summary>
-        <textarea data-field="media" data-id="${p.id}" rows="2" placeholder="https://drive.google.com/file/d/.../view&#10;вторая ссылка — для карусели">${escape(p.media||"")}</textarea>
-      </details>
+      <button class="btn ghost add-media-btn" data-anya-open="${p.id}" data-add-kind="media" ${p.media?"hidden":""}>➕ Добавить картинки в режиме Ани</button>
     </div>
 
     <div>
@@ -1337,8 +1333,21 @@ $$("nav.tabs button").forEach(b => b.addEventListener("click", e => {
 });
 
 document.addEventListener("click", e => {
-  const t = e.target.closest("button, a, [data-jump], [data-close-pm], [data-mark-published], [data-mark-unpublish], [data-anya-jump], [data-anya-prev], [data-anya-next], [data-anya-ready]");
+  const t = e.target.closest("button, a, [data-jump], [data-close-pm], [data-mark-published], [data-mark-unpublish], [data-anya-jump], [data-anya-open], [data-anya-prev], [data-anya-next], [data-anya-ready]");
   if(!t) return;
+  if(t.matches("[data-anya-open]")){
+    state.anyaCurrentId = t.dataset.anyaOpen; state.activeTab = "anya"; saveState();
+    $$("nav.tabs button").forEach(x=>x.classList.remove("active"));
+    $$("section").forEach(s=>s.classList.remove("active"));
+    const btn = document.querySelector('nav.tabs button[data-tab="anya"]');
+    if(btn) btn.classList.add("active");
+    const sec = document.getElementById("sec-anya");
+    if(sec) sec.classList.add("active");
+    applyToolbarMode("anya");
+    renderAnya();
+    window.scrollTo({top:0, behavior:"smooth"});
+    return;
+  }
   if(t.matches("[data-anya-jump]")){
     state.anyaCurrentId = t.dataset.anyaJump; saveState(); renderAnya();
     return;
@@ -1765,6 +1774,11 @@ function refreshPreviewImmediate(id, kind, value, sufx){
   const html = kind === "media" ? renderMediaPreview(parseMediaList(value)) : renderCoverPreview(value);
   const sel = `[id="${prefix}${id}${suff}"]`;
   document.querySelectorAll(sel).forEach(el => { el.innerHTML = html; });
+  if(!suff){
+    document.querySelectorAll(`button.add-media-btn[data-anya-open="${id}"][data-add-kind="${kind}"]`).forEach(btn => {
+      btn.hidden = !!value;
+    });
+  }
 }
 
 /* Drag&drop + клик по .uploader */
