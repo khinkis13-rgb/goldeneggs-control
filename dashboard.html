@@ -138,6 +138,47 @@
     .pm-text-area{min-height:180px}
   }
 
+  /* publish modal — tabs */
+  .pm-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:0 0 14px;flex-wrap:wrap}
+  .pm-tabs button{background:transparent;border:none;color:var(--muted);padding:8px 14px;cursor:pointer;border-bottom:2px solid transparent;font-size:13px;font-weight:600}
+  .pm-tabs button.active{color:var(--gold);border-bottom-color:var(--gold)}
+  .pm-tabs button:hover{color:var(--cream)}
+  .pm-platform-note{font-size:11px;color:var(--muted);margin-bottom:6px}
+
+  /* PLATFORM chips */
+  .platforms-row{display:flex;flex-wrap:wrap;gap:6px}
+  .platform-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--line);background:var(--bg2);border-radius:99px;cursor:pointer;font-size:13px;color:var(--muted);user-select:none}
+  .platform-chip input{margin:0;accent-color:var(--gold)}
+  .platform-chip.on{border-color:var(--gold-dim);color:var(--gold);background:rgba(230,184,100,.08)}
+  .platform-chip:hover{border-color:var(--gold-dim)}
+
+  /* DROPZONE */
+  .dropzone{position:relative;border-radius:10px;border:2px dashed transparent;transition:.15s;padding:0}
+  .dropzone .dz-hint{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(230,184,100,.15);color:var(--gold);font-weight:600;border-radius:8px;pointer-events:none;font-size:14px}
+  .dropzone.drag-over{border-color:var(--gold)}
+  .dropzone.drag-over .dz-hint{display:flex}
+  .dz-uploading{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.7);color:var(--gold);padding:3px 10px;border-radius:99px;font-size:11px;display:none}
+  .dropzone.uploading .dz-uploading{display:inline-block}
+
+  /* ANYA focus mode */
+  .anya-progress{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:14px}
+  .anya-progress .progress{margin-top:8px}
+  .anya-strip{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px;justify-content:center}
+  .anya-dot{width:18px;height:18px;border-radius:50%;border:1px solid var(--line);background:var(--bg2);cursor:pointer;padding:0;position:relative}
+  .anya-dot.filled{background:var(--gold-dim);border-color:var(--gold)}
+  .anya-dot.active{outline:2px solid var(--gold);outline-offset:2px}
+  .anya-dot:hover{border-color:var(--gold)}
+  .anya-focus{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow);max-width:780px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+  .af-title{font-size:20px;font-weight:600;background:transparent;border:1px solid transparent;color:var(--gold);padding:6px 8px;border-radius:8px;width:100%}
+  .af-title:hover{border-color:var(--line)}
+  .af-title:focus{outline:none;border-color:var(--gold-dim);background:var(--bg2)}
+  .af-label{font-size:13px;color:var(--muted);margin-bottom:6px}
+  .af-block textarea{min-height:110px;font-size:15px;line-height:1.55}
+  .af-block textarea[data-field="text"]{min-height:180px}
+  .af-nav{display:flex;justify-content:space-between;align-items:center;gap:10px;border-top:1px solid var(--line);padding-top:14px;margin-top:4px;flex-wrap:wrap}
+  .af-counter{color:var(--muted);font-size:13px;text-align:center;flex:1}
+  .af-empty{padding:40px;text-align:center;background:var(--panel);border:1px dashed var(--line);border-radius:var(--radius);color:var(--muted)}
+
   /* helpers */
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
   .small{font-size:12px;color:var(--muted)}
@@ -241,11 +282,42 @@ const SEED_POSTS = [
   {id:"ig-24", platform:"Instagram", datetime:"2026-05-23T12:00:00", title:"Рилс 5", mode:"Reels (пробный)"},
   {id:"ig-25", platform:"Instagram", datetime:"2026-05-23T19:00:00", title:"Рилс 6", mode:"Reels (пробный)"}
 ];
-const DEFAULT_FIELDS = {
+/* Платформы — Instagram = база, остальные имеют override-поля (text_fb, cover_fb и т.д.) */
+const PLATFORMS = ["Instagram","Facebook","Telegram","TikTok","YouTube","VK"];
+const PLATFORM_SUFFIX = {Facebook:"_fb", Telegram:"_tg", TikTok:"_tt", YouTube:"_yt", VK:"_vk"};
+const PLATFORM_SHORT  = {Instagram:"IG", Facebook:"FB", Telegram:"TG", TikTok:"TT", YouTube:"YT", VK:"VK"};
+
+const OVERRIDE_FIELDS = (() => {
+  const out = {};
+  Object.values(PLATFORM_SUFFIX).forEach(s => {
+    out["text"+s] = ""; out["hashtags"+s] = ""; out["media"+s] = ""; out["cover"+s] = "";
+  });
+  return out;
+})();
+
+const DEFAULT_FIELDS = Object.assign({
   text:"", hashtags:"", media:"", cover:"", owner:"Аня",
   status:"draft", // draft | review | ready | published
+  platforms:"Instagram",
   checks:{visual:false, text:false, geo:false, hashtags:false, link:false, sound:false}
-};
+}, OVERRIDE_FIELDS);
+
+function parsePlatforms(s){
+  if(Array.isArray(s)) return s.filter(x => PLATFORMS.includes(x));
+  return String(s||"").split(/[,;]/).map(x=>x.trim()).filter(x => PLATFORMS.includes(x));
+}
+function postPlatforms(p){
+  const list = parsePlatforms(p.platforms || (p.platform ? [p.platform] : ["Instagram"]));
+  return list.length ? list : ["Instagram"];
+}
+function contentForPlatform(p, plat){
+  const sufx = PLATFORM_SUFFIX[plat] || "";
+  const t = sufx ? (p["text"+sufx] || p.text) : p.text;
+  const h = sufx ? (p["hashtags"+sufx] || p.hashtags) : p.hashtags;
+  const c = sufx ? (p["cover"+sufx] || p.cover) : p.cover;
+  const m = sufx ? (p["media"+sufx] || p.media) : p.media;
+  return {text:t||"", hashtags:h||"", cover:c||"", media:m||""};
+}
 const DEFAULT_SETTINGS = {
   backendUrl:"",
   links:{
@@ -323,8 +395,11 @@ async function loadFromBackend({silent=false}={}){
     const posts = {};
     (data.posts||[]).forEach(p => {
       const id = "row-"+p.rowIndex;
+      const platforms = parsePlatforms(p.platforms);
       posts[id] = Object.assign({}, DEFAULT_FIELDS, p, {
-        id, platform:"Instagram",
+        id,
+        platforms: platforms.length ? platforms.join(", ") : (p.platforms || "Instagram"),
+        platform: platforms[0] || "Instagram",  // обратная совместимость для старого кода
         checks: Object.assign({}, DEFAULT_FIELDS.checks, p.checks||{}),
         status: p.status || "draft"
       });
@@ -448,8 +523,7 @@ function renderFilters(){
 }
 
 function postCard(p){
-  const link = state.settings.links[p.platform] || "";
-  const action = PLATFORM_ACTIONS[p.platform] || {open:"Открыть площадку", create:""};
+  const platforms = postPlatforms(p);
   const fullText = buildFullText(p);
   const tags = p.hashtags || state.settings.baseHashtags;
   const checks = Object.entries(CHECK_LABELS).map(([k,label])=>{
@@ -465,7 +539,7 @@ function postCard(p){
       <div>
         <h3>${escape(p.title || "Без названия")}</h3>
         <div class="meta">
-          <span class="pill gold">${p.platform}</span>
+          ${platforms.map(x => `<span class="pill gold">${escape(PLATFORM_SHORT[x]||x)}</span>`).join("")}
           ${p.mode?`<span class="pill">${escape(p.mode)}</span>`:""}
           <span>${fmtDateTime(p.datetime)}</span>
         </div>
@@ -505,14 +579,13 @@ function postCard(p){
       </div>
     </details>
 
-    <div>
-      <div class="row" style="justify-content:space-between;margin-bottom:6px">
-        <div class="small">Чек-лист публикации</div>
-        <div class="small">${checkDone}/${checkTotal}</div>
+    <details>
+      <summary>✓ Чек-лист публикации · ${checkDone}/${checkTotal}</summary>
+      <div style="margin-top:8px">
+        <div class="progress"><div style="width:${pct}%"></div></div>
+        <div class="checklist" style="margin-top:8px">${checks}</div>
       </div>
-      <div class="progress"><div style="width:${pct}%"></div></div>
-      <div class="checklist" style="margin-top:8px">${checks}</div>
-    </div>
+    </details>
 
     <div class="actions">
       <button class="btn primary publish-btn" data-id="${p.id}">🚀 Публикую</button>
@@ -563,16 +636,30 @@ function renderCoverPreview(url){
 }
 
 /* ===== PUBLISH MODAL ===== */
-function openPublishModal(postId){
+function buildFullTextFor(p, plat){
+  const c = contentForPlatform(p, plat);
+  const tags = (c.hashtags || state.settings.baseHashtags || "").trim();
+  return (c.text||"").trim() + (tags?("\n\n"+tags):"");
+}
+function openPublishModal(postId, platformHint){
   const p = state.posts[postId];
   if(!p) return;
-  const fullText = buildFullText(p);
-  const mediaList = parseMediaList(p.media);
-  const coverPrev = mediaPreviewUrl(p.cover);
-  const action = PLATFORM_ACTIONS[p.platform] || {open:"Открыть площадку", create:"#"};
+  const platforms = postPlatforms(p);
+  const activePlat = platforms.includes(platformHint) ? platformHint : platforms[0];
+  renderPublishModal(p, activePlat);
+}
+function renderPublishModal(p, plat){
+  const platforms = postPlatforms(p);
+  const c = contentForPlatform(p, plat);
+  const fullText = buildFullTextFor(p, plat);
+  const mediaList = parseMediaList(c.media);
+  const coverPrev = mediaPreviewUrl(c.cover);
+  const action = PLATFORM_ACTIONS[plat] || {open:"Открыть площадку", create:"#"};
+  const sufx = PLATFORM_SUFFIX[plat] || "";
+  const usingOverride = !!sufx && !!(p["text"+sufx] || p["cover"+sufx] || p["media"+sufx] || p["hashtags"+sufx]);
 
   const coverBlock = coverPrev
-    ? `<div class="pm-cover"><a href="${escape(p.cover)}" target="_blank" rel="noopener"><img src="${escape(coverPrev)}" alt="обложка"></a><div class="pm-cover-cap">обложка — клик откроет оригинал, там «правый клик → сохранить» или «копировать изображение»</div></div>`
+    ? `<div class="pm-cover"><a href="${escape(c.cover)}" target="_blank" rel="noopener"><img src="${escape(coverPrev)}" alt="обложка"></a><div class="pm-cover-cap">обложка — клик откроет оригинал, там «правый клик → сохранить» или «копировать изображение»</div></div>`
     : "";
 
   const mediaBlock = mediaList.length
@@ -587,12 +674,20 @@ function openPublishModal(postId){
     ? `<div class="today-empty">Медиа ещё не прикреплено. <br><span class="small">Пусть Аня вставит ссылки в карточку.</span></div>`
     : "";
 
+  const tabs = platforms.length>1
+    ? `<div class="pm-tabs">${platforms.map(x => `<button class="${x===plat?'active':''}" data-pm-platform="${x}" data-id="${p.id}">${escape(x)}</button>`).join("")}</div>`
+    : "";
+
+  const noteText = platforms.length>1
+    ? (usingOverride ? `Показан свой контент для ${plat}` : `Показан базовый контент (взят из IG)`)
+    : "";
+
   const html = `
     <div class="pm-head">
       <div>
         <div class="pm-title">${escape(p.title || "Без названия")}</div>
         <div class="small" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;align-items:center">
-          <span class="pill gold">${escape(p.platform)}</span>
+          ${platforms.map(x => `<span class="pill ${x===plat?'gold':''}">${escape(x)}</span>`).join("")}
           ${p.mode?`<span class="pill">${escape(p.mode)}</span>`:""}
           <span class="pill ${STATUS_CLASS[p.status]||""}">${STATUS_LABEL[p.status]||p.status}</span>
           <span>${fmtDateTime(p.datetime)}</span>
@@ -601,14 +696,17 @@ function openPublishModal(postId){
       <button class="btn ghost" data-close-pm title="Закрыть">✕</button>
     </div>
 
+    ${tabs}
+
     <div class="pm-grid">
       <div>
+        ${noteText?`<div class="pm-platform-note">${noteText}</div>`:""}
         <div class="row" style="gap:6px;margin-bottom:8px">
-          <button class="btn primary pm-copy-all" data-id="${p.id}">📋 Скопировать всё (текст + хэштеги)</button>
+          <button class="btn primary pm-copy-all" data-id="${p.id}" data-platform="${plat}">📋 Скопировать всё (текст + хэштеги)</button>
         </div>
         <div class="row" style="gap:6px;margin-bottom:8px">
-          <button class="btn pm-copy-text" data-id="${p.id}">📋 Только текст</button>
-          <button class="btn pm-copy-tags" data-id="${p.id}">#️⃣ Только хэштеги</button>
+          <button class="btn pm-copy-text" data-id="${p.id}" data-platform="${plat}">📋 Только текст</button>
+          <button class="btn pm-copy-tags" data-id="${p.id}" data-platform="${plat}">#️⃣ Только хэштеги</button>
         </div>
         <textarea class="pm-text-area" readonly>${escape(fullText)}</textarea>
         <div class="field-hint">Это то, что вставится в пост. Если хочется поправить — закройте окно и отредактируйте карточку.</div>
@@ -622,7 +720,7 @@ function openPublishModal(postId){
 
     <div class="pm-footer">
       <a class="btn big" href="${action.create||"#"}" target="_blank" rel="noopener">↗ ${action.open||"Открыть площадку"}</a>
-      ${p.platform==="Instagram"?`<a class="btn big" href="https://www.facebook.com/?sk=composer" target="_blank" rel="noopener">↗ Открыть Facebook</a>`:""}
+      ${plat==="Instagram" && platforms.includes("Facebook")?`<a class="btn big" href="https://www.facebook.com/?sk=composer" target="_blank" rel="noopener">↗ И Facebook composer</a>`:""}
       <div class="spacer"></div>
       ${p.status!=="published"
         ? `<button class="btn big primary" data-mark-published="${p.id}">✓ Опубликовано</button>`
@@ -631,6 +729,7 @@ function openPublishModal(postId){
   `;
   $("#modalBody").innerHTML = html;
   $("#modal").classList.add("show");
+  state.lastPublishPlatform = plat;
 }
 
 function closePublishModal(){
@@ -720,31 +819,191 @@ function renderAll(){
   $("#sec-all").innerHTML = `<div class="post-grid">${list.map(postCard).join("")}</div>`;
 }
 
-/* ANYA */
+/* ANYA — focus mode */
+function isAnyaFilled(p){
+  const hasText = !!(p.text && p.text.trim());
+  const hasMedia = !!(p.cover && p.cover.trim()) || parseMediaList(p.media).length>0;
+  return hasText && hasMedia;
+}
+function anyaPosts(){
+  return listPosts().filter(p => p.status !== "published");
+}
+function nextUnfilledId(currentId){
+  const posts = anyaPosts();
+  if(!posts.length) return null;
+  const idx = currentId ? posts.findIndex(p=>p.id===currentId) : -1;
+  for(let i=idx+1;i<posts.length;i++){ if(!isAnyaFilled(posts[i])) return posts[i].id; }
+  for(let i=0;i<idx;i++){ if(!isAnyaFilled(posts[i])) return posts[i].id; }
+  return null;
+}
 function renderAnya(){
-  const posts = listPosts();
-  const groups = {draft:[],review:[],ready:[],published:[]};
-  posts.forEach(p => (groups[p.status]||groups.draft).push(p));
-  const block = (title, key, hint, cls) => {
-    const items = groups[key];
-    if(!items.length) return `<div class="card"><h3>${title} <span class="pill ${cls}">0</span></h3><div class="small">${hint}</div></div>`;
-    return `<div class="card"><h3>${title} <span class="pill ${cls}">${items.length}</span></h3>
-      <div class="small">${hint}</div>
-      <div style="display:flex;flex-direction:column;gap:6px;margin-top:8px">
-        ${items.map(p=>`<div class="row" style="justify-content:space-between;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:8px 10px">
-          <div><strong>${escape(p.title)}</strong> <span class="small">· ${fmtDateTime(p.datetime)}</span></div>
-          <button class="btn ghost jump" data-jump="${p.id}">Открыть</button>
-        </div>`).join("")}
+  const posts = anyaPosts();
+  const root = $("#sec-anya");
+  if(!posts.length){
+    root.innerHTML = `<div class="af-empty">Постов в работе нет 🎉<br><span class="small">Всё опубликовано или ещё не создано. Добавить новый — кнопка «+ Новый пост» в верхней панели.</span></div>`;
+    return;
+  }
+  const filled = posts.filter(isAnyaFilled).length;
+  const pct = posts.length ? Math.round(filled/posts.length*100) : 0;
+
+  let currentId = state.anyaCurrentId;
+  let current = currentId ? state.posts[currentId] : null;
+  if(!current || current.status === "published"){
+    current = posts.find(p => !isAnyaFilled(p)) || posts[0];
+    currentId = current.id;
+    state.anyaCurrentId = currentId; saveState();
+  }
+  const idx = posts.findIndex(p=>p.id===currentId);
+  const p = current;
+  const allDone = filled === posts.length;
+
+  const strip = `<div class="anya-strip" id="anyaStrip">${posts.map(x => {
+    const cls = isAnyaFilled(x) ? "filled" : "empty";
+    const active = x.id===currentId ? "active" : "";
+    return `<button class="anya-dot ${cls} ${active}" data-anya-jump="${x.id}" title="${escape(x.title||'')} — ${isAnyaFilled(x)?'заполнен':'пусто'}"></button>`;
+  }).join("")}</div>`;
+
+  const platforms = postPlatforms(p);
+  const platformsBlock = `
+    <div class="af-block">
+      <div class="af-label">📤 Куда постим</div>
+      <div class="platforms-row">
+        ${PLATFORMS.map(name => {
+          const checked = platforms.includes(name);
+          return `<label class="platform-chip ${checked?'on':''}"><input type="checkbox" data-platform-toggle="${name}" data-id="${p.id}" ${checked?"checked":""}>${name}</label>`;
+        }).join("")}
       </div>
-    </div>`;
-  };
-  $("#sec-anya").innerHTML = `
-    <div class="post-grid">
-      ${block("Черновики","draft","Аня готовит текст и медиа","red")}
-      ${block("На ревью","review","Дмитрий смотрит и подтверждает","warn")}
-      ${block("Готовы к публикации","ready","Можно публиковать в назначенное время","ok")}
-      ${block("Опубликованы","published","Архив","gold")}
-    </div>`;
+    </div>
+  `;
+  const altPlatforms = platforms.filter(x => x !== "Instagram" && PLATFORM_SUFFIX[x]);
+  const overrideBlocks = altPlatforms.map(plat => {
+    const sufx = PLATFORM_SUFFIX[plat];
+    const hasAny = !!(p["text"+sufx] || p["cover"+sufx] || p["media"+sufx] || p["hashtags"+sufx]);
+    return `
+      <details ${hasAny?"open":""}>
+        <summary>✏️ Свой контент для ${plat}${hasAny?" · заполнено":""}</summary>
+        <div class="small" style="margin:6px 0 10px">Оставьте пустым — для ${plat} возьмётся базовый контент сверху.</div>
+        <div class="af-label">🖼 Обложка для ${plat}</div>
+        <div class="dropzone" data-field-cover="${p.id}|${sufx}">
+          <input type="url" data-field="cover${sufx}" data-id="${p.id}" value="${escape(p["cover"+sufx]||"")}" placeholder="как у IG, либо своя ссылка / перетащите файл сюда">
+          <div class="dz-hint">⬇ перетащите файл — загрузим в Drive</div>
+        </div>
+        <div id="cover-preview-${p.id}${sufx}">${renderCoverPreview(p["cover"+sufx])}</div>
+        <div class="af-label" style="margin-top:10px">📎 Медиа для ${plat}</div>
+        <div class="dropzone" data-field-media="${p.id}|${sufx}">
+          <textarea data-field="media${sufx}" data-id="${p.id}" rows="2" placeholder="одна ссылка на строку, либо перетащите файлы сюда">${escape(p["media"+sufx]||"")}</textarea>
+          <div class="dz-hint">⬇ перетащите файлы — каждый добавится новой строкой</div>
+        </div>
+        <div id="media-preview-${p.id}${sufx}">${renderMediaPreview(parseMediaList(p["media"+sufx]))}</div>
+        <div class="af-label" style="margin-top:10px">✍️ Текст для ${plat}</div>
+        <textarea data-field="text${sufx}" data-id="${p.id}" placeholder="как у IG, либо свой текст">${escape(p["text"+sufx]||"")}</textarea>
+        <div class="af-label" style="margin-top:10px">#️⃣ Хэштеги для ${plat}</div>
+        <textarea data-field="hashtags${sufx}" data-id="${p.id}" placeholder="как у IG, либо свои">${escape(p["hashtags"+sufx]||"")}</textarea>
+      </details>
+    `;
+  }).join("");
+
+  const card = `
+    <div class="anya-focus" data-id="${p.id}">
+      <div>
+        <input type="text" class="af-title" data-field="title" data-id="${p.id}" value="${escape(p.title||"")}" placeholder="Название поста">
+        <div class="small" style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          ${p.mode?`<span class="pill">${escape(p.mode)}</span>`:""}
+          <span>${fmtDateTime(p.datetime)}</span>
+          <span class="pill ${STATUS_CLASS[p.status]||""}">${STATUS_LABEL[p.status]||p.status}</span>
+        </div>
+      </div>
+
+      ${platformsBlock}
+
+      <div class="af-block">
+        <div class="af-label">🖼 Обложка (главное изображение) — для всех платформ по умолчанию</div>
+        <div class="dropzone" data-field-cover="${p.id}|">
+          <input type="url" data-field="cover" data-id="${p.id}" value="${escape(p.cover||"")}" placeholder="https://drive.google.com/file/d/.../view  или перетащите файл сюда">
+          <div class="dz-hint">⬇ перетащите файл — загрузим в Drive</div>
+        </div>
+        <div id="cover-preview-${p.id}">${renderCoverPreview(p.cover)}</div>
+      </div>
+
+      <div class="af-block">
+        <div class="af-label">📎 Картинки и видео — по одной ссылке на строку</div>
+        <div class="dropzone" data-field-media="${p.id}|">
+          <textarea data-field="media" data-id="${p.id}" rows="2" placeholder="https://drive.google.com/file/d/.../view&#10;вторая ссылка...&#10;или перетащите файлы сюда">${escape(p.media||"")}</textarea>
+          <div class="dz-hint">⬇ перетащите файлы — каждый добавится новой строкой</div>
+        </div>
+        <div id="media-preview-${p.id}">${renderMediaPreview(parseMediaList(p.media))}</div>
+        <div class="field-hint">Drive → правой кнопкой «Поделиться» → «Доступ для всех» → ссылку сюда. Или просто перетащите файл — пульт загрузит сам.</div>
+      </div>
+
+      <div class="af-block">
+        <div class="af-label">✍️ Текст поста — для всех платформ по умолчанию</div>
+        <textarea data-field="text" data-id="${p.id}" placeholder="Напишите текст поста...">${escape(p.text||"")}</textarea>
+      </div>
+
+      <details>
+        <summary>Дополнительно: хэштеги, ответственный</summary>
+        <div style="margin-top:8px">
+          <div class="small">Хэштеги (если пусто — берутся базовые из настроек)</div>
+          <textarea data-field="hashtags" data-id="${p.id}" placeholder="${escape(state.settings.baseHashtags)}">${escape(p.hashtags||"")}</textarea>
+          <div class="small" style="margin-top:8px">Ответственный</div>
+          <input type="text" data-field="owner" data-id="${p.id}" value="${escape(p.owner||"")}" placeholder="Аня / Дмитрий">
+        </div>
+      </details>
+
+      ${overrideBlocks}
+
+      ${isAnyaFilled(p) && p.status==="draft" ? `<div style="text-align:center"><button class="btn primary" data-anya-ready="${p.id}">✓ Готов — передать Дмитрию на ревью</button></div>` : ""}
+
+      <div class="af-nav">
+        <button class="btn" data-anya-prev ${idx<=0?"disabled":""}>← Предыдущий</button>
+        <div class="af-counter">Пост ${idx+1} из ${posts.length}</div>
+        <button class="btn primary" data-anya-next>${allDone ? "→ Следующий" : (isAnyaFilled(p) ? "→ К незаполненному" : "→ Следующий незаполненный")}</button>
+      </div>
+    </div>
+  `;
+
+  root.innerHTML = `
+    <div class="anya-progress" id="anyaProgress">
+      <div class="row" style="justify-content:space-between">
+        <div><strong>${allDone ? "🎉 Все посты заполнены!" : `Заполнено ${filled} из ${posts.length}`}</strong></div>
+        <div class="small">${pct}%</div>
+      </div>
+      <div class="progress"><div style="width:${pct}%"></div></div>
+    </div>
+    ${strip}
+    ${card}
+  `;
+}
+
+/* Обновление прогресса и полоски без перерисовки карточки (чтобы фокус в textarea не терялся) */
+function updateAnyaProgressLight(){
+  const root = $("#sec-anya");
+  if(!root || !root.classList.contains("active")) return;
+  const posts = anyaPosts();
+  if(!posts.length) return;
+  const filled = posts.filter(isAnyaFilled).length;
+  const pct = posts.length ? Math.round(filled/posts.length*100) : 0;
+  const allDone = filled === posts.length;
+  const prog = document.getElementById("anyaProgress");
+  if(prog){
+    const label = prog.querySelector("strong");
+    if(label) label.textContent = allDone ? "🎉 Все посты заполнены!" : `Заполнено ${filled} из ${posts.length}`;
+    const small = prog.querySelector(".small");
+    if(small) small.textContent = pct+"%";
+    const bar = prog.querySelector(".progress > div");
+    if(bar) bar.style.width = pct+"%";
+  }
+  const strip = document.getElementById("anyaStrip");
+  if(strip){
+    posts.forEach(x => {
+      const dot = strip.querySelector(`[data-anya-jump="${x.id}"]`);
+      if(dot){
+        dot.classList.toggle("filled", isAnyaFilled(x));
+        dot.classList.toggle("empty", !isAnyaFilled(x));
+        dot.title = (x.title||"")+" — "+(isAnyaFilled(x)?"заполнен":"пусто");
+      }
+    });
+  }
 }
 
 /* SETTINGS */
@@ -841,16 +1100,44 @@ $$("nav.tabs button").forEach(b => b.addEventListener("click", e => {
 });
 
 document.addEventListener("click", e => {
-  const t = e.target.closest("button, a, [data-jump], [data-close-pm], [data-mark-published], [data-mark-unpublish]");
+  const t = e.target.closest("button, a, [data-jump], [data-close-pm], [data-mark-published], [data-mark-unpublish], [data-anya-jump], [data-anya-prev], [data-anya-next], [data-anya-ready]");
   if(!t) return;
+  if(t.matches("[data-anya-jump]")){
+    state.anyaCurrentId = t.dataset.anyaJump; saveState(); renderAnya();
+    return;
+  } else if(t.matches("[data-anya-prev]")){
+    const posts = anyaPosts();
+    const idx = posts.findIndex(x=>x.id===state.anyaCurrentId);
+    if(idx>0){ state.anyaCurrentId = posts[idx-1].id; saveState(); renderAnya(); }
+    return;
+  } else if(t.matches("[data-anya-next]")){
+    const posts = anyaPosts();
+    const idx = posts.findIndex(x=>x.id===state.anyaCurrentId);
+    const nextUn = nextUnfilledId(state.anyaCurrentId);
+    if(nextUn){ state.anyaCurrentId = nextUn; }
+    else if(idx>=0 && idx<posts.length-1){ state.anyaCurrentId = posts[idx+1].id; }
+    else if(posts.length){ state.anyaCurrentId = posts[0].id; }
+    saveState(); renderAnya();
+    return;
+  } else if(t.matches("[data-anya-ready]")){
+    const id = t.dataset.anyaReady;
+    const p = state.posts[id]; if(!p) return;
+    p.status = "review"; saveState(); render();
+    const ri = rowIndexOf(p); if(ri) pushField(ri, "status", "review", 0);
+    flash("Отправлено Дмитрию на ревью");
+    return;
+  }
   if(t.matches(".publish-btn")){
     openPublishModal(t.dataset.id);
+  } else if(t.matches("[data-pm-platform]")){
+    const p = state.posts[t.dataset.id]; if(!p) return;
+    renderPublishModal(p, t.dataset.pmPlatform);
   } else if(t.matches(".pm-copy-all")){
-    const p = state.posts[t.dataset.id]; copy(buildFullText(p));
+    const p = state.posts[t.dataset.id]; copy(buildFullTextFor(p, t.dataset.platform||"Instagram"));
   } else if(t.matches(".pm-copy-text")){
-    const p = state.posts[t.dataset.id]; copy((p.text||"").trim());
+    const p = state.posts[t.dataset.id]; const c = contentForPlatform(p, t.dataset.platform||"Instagram"); copy((c.text||"").trim());
   } else if(t.matches(".pm-copy-tags")){
-    const p = state.posts[t.dataset.id]; copy((p.hashtags||state.settings.baseHashtags||"").trim());
+    const p = state.posts[t.dataset.id]; const c = contentForPlatform(p, t.dataset.platform||"Instagram"); copy((c.hashtags||state.settings.baseHashtags||"").trim());
   } else if(t.matches(".pm-open-all")){
     try{
       const urls = JSON.parse(t.dataset.urls);
@@ -904,6 +1191,20 @@ document.addEventListener("change", e => {
     p.checks = p.checks || {}; p.checks[t.dataset.check] = t.checked;
     saveState(); renderToday(); renderAll(); renderAnya();
     const ri = rowIndexOf(p); if(ri) pushField(ri, "checks", p.checks, 0);
+  } else if(t.matches("[data-platform-toggle]")){
+    const p = state.posts[t.dataset.id]; if(!p) return;
+    const plat = t.dataset.platformToggle;
+    const list = postPlatforms(p);
+    const idx = list.indexOf(plat);
+    if(t.checked && idx<0) list.push(plat);
+    if(!t.checked && idx>=0) list.splice(idx,1);
+    // Сохраняем в порядке PLATFORMS для стабильного вида
+    const ordered = PLATFORMS.filter(x => list.includes(x));
+    p.platforms = ordered.join(", ");
+    p.platform = ordered[0] || "Instagram"; // обратная совместимость
+    saveState();
+    const ri = rowIndexOf(p); if(ri) pushField(ri, "platforms", p.platforms, 200);
+    renderAnya(); renderToday(); renderAll();
   } else if(t.matches("[data-setting-link]")){
     state.settings.links[t.dataset.settingLink] = t.value.trim(); saveState();
   } else if(t.matches("[data-setting]")){
@@ -913,19 +1214,25 @@ document.addEventListener("change", e => {
 });
 
 const previewDebounce = new Map();
-function refreshPreview(id, field, value){
-  const key = id+"|"+field;
+function refreshPreview(id, kind, value, sufx){
+  const suff = sufx || "";
+  const key = id+"|"+kind+"|"+suff;
   if(previewDebounce.has(key)) clearTimeout(previewDebounce.get(key));
   previewDebounce.set(key, setTimeout(()=>{
     previewDebounce.delete(key);
-    if(field === "media"){
-      const el = document.getElementById("media-preview-"+id);
+    if(kind === "media"){
+      const el = document.getElementById("media-preview-"+id+suff);
       if(el) el.innerHTML = renderMediaPreview(parseMediaList(value));
-    } else if(field === "cover"){
-      const el = document.getElementById("cover-preview-"+id);
+    } else if(kind === "cover"){
+      const el = document.getElementById("cover-preview-"+id+suff);
       if(el) el.innerHTML = renderCoverPreview(value);
     }
   }, 350));
+}
+function fieldKind(field){
+  if(field === "cover" || field.startsWith("cover_")) return {kind:"cover", sufx: field.length>5 ? field.slice(5) : ""};
+  if(field === "media" || field.startsWith("media_")) return {kind:"media", sufx: field.length>5 ? field.slice(5) : ""};
+  return null;
 }
 document.addEventListener("input", e => {
   const t = e.target;
@@ -934,8 +1241,12 @@ document.addEventListener("input", e => {
     p[t.dataset.field] = t.value; saveState();
     const ri = rowIndexOf(p);
     if(ri) pushField(ri, t.dataset.field, t.value, 800);
-    if(t.dataset.field === "media" || t.dataset.field === "cover"){
-      refreshPreview(p.id, t.dataset.field, t.value);
+    const fk = fieldKind(t.dataset.field);
+    if(fk){
+      refreshPreview(p.id, fk.kind, t.value, fk.sufx);
+    }
+    if(["text","media","cover"].includes(t.dataset.field)){
+      updateAnyaProgressLight();
     }
   }
 });
@@ -1001,6 +1312,90 @@ $("#fileImport").addEventListener("change", e => {
 $("#btnReset").addEventListener("click", () => {
   if(!confirm("Сбросить все локальные изменения и вернуть исходное расписание?")) return;
   localStorage.removeItem(LS_KEY); state = loadState(); render();
+});
+
+/* ===== DRAG&DROP UPLOAD ===== */
+const MAX_UPLOAD_BYTES = 30 * 1024 * 1024; // 30 MB предупреждение
+const HARD_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB жёсткий лимит Apps Script
+
+function fileToBase64(file){
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const s = r.result || "";
+      const i = String(s).indexOf(",");
+      resolve(i >= 0 ? String(s).slice(i+1) : String(s));
+    };
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+async function uploadFileToDrive(file){
+  if(!isOnline()) throw new Error("Загрузка работает только в online-режиме (URL Apps Script в Настройках).");
+  const folderUrl = (state.settings.mediaFolder||"").trim();
+  if(!folderUrl) throw new Error("В Настройках не задана папка Drive — некуда грузить.");
+  if(file.size > HARD_UPLOAD_BYTES) throw new Error(`Файл слишком большой (${(file.size/1024/1024).toFixed(1)} MB). Apps Script держит до 50 MB. Загрузите вручную в Drive и вставьте ссылку.`);
+  if(file.size > MAX_UPLOAD_BYTES && !confirm(`Файл ${(file.size/1024/1024).toFixed(1)} MB — загрузка может занять минуту и иногда падает. Продолжить?`)) return null;
+  const dataBase64 = await fileToBase64(file);
+  setConn("⏳ Загрузка "+file.name+"…","warn");
+  const res = await api({action:"upload", filename:file.name, mimeType:file.type||"application/octet-stream", folderUrl, dataBase64});
+  setConn("✓ Загружено","ok");
+  return res.url;
+}
+
+/* Drag&drop поверх dropzone-обёрток вокруг cover input и media textarea */
+document.addEventListener("dragover", e => {
+  const dz = e.target.closest(".dropzone"); if(!dz) return;
+  e.preventDefault(); dz.classList.add("drag-over");
+});
+document.addEventListener("dragleave", e => {
+  const dz = e.target.closest(".dropzone"); if(!dz) return;
+  if(!dz.contains(e.relatedTarget)) dz.classList.remove("drag-over");
+});
+document.addEventListener("drop", async e => {
+  const dz = e.target.closest(".dropzone"); if(!dz) return;
+  e.preventDefault(); dz.classList.remove("drag-over");
+  const files = Array.from(e.dataTransfer.files||[]); if(!files.length) return;
+  const isCover = dz.hasAttribute("data-field-cover");
+  const meta = (dz.getAttribute("data-field-cover") || dz.getAttribute("data-field-media") || "");
+  const [postId, sufx] = meta.split("|");
+  const fieldName = (isCover ? "cover" : "media") + (sufx||"");
+  const p = state.posts[postId]; if(!p){ alert("Не нашёл пост"); return; }
+  dz.classList.add("uploading");
+  if(!dz.querySelector(".dz-uploading")) {
+    const tag = document.createElement("div");
+    tag.className = "dz-uploading"; tag.textContent = "⏳";
+    dz.appendChild(tag);
+  }
+  try{
+    for(let i=0;i<files.length;i++){
+      const file = files[i];
+      dz.querySelector(".dz-uploading").textContent = `⏳ ${i+1}/${files.length}`;
+      const url = await uploadFileToDrive(file);
+      if(!url) continue;
+      if(isCover){
+        // cover — одна ссылка, перезаписываем
+        p[fieldName] = url;
+        const inp = dz.querySelector('input[data-field]'); if(inp) inp.value = url;
+      } else {
+        // media — добавляем каждый файл новой строкой
+        const cur = (p[fieldName]||"").trim();
+        p[fieldName] = cur ? cur + "\n" + url : url;
+        const ta = dz.querySelector('textarea[data-field]'); if(ta) ta.value = p[fieldName];
+      }
+      saveState();
+      const ri = rowIndexOf(p); if(ri) pushField(ri, fieldName, p[fieldName], 0);
+      refreshPreview(p.id, fieldName.startsWith("cover") ? "cover" : "media", p[fieldName], sufx||"");
+    }
+    flash("Загружено в Drive");
+    updateAnyaProgressLight();
+  } catch(err){
+    alert("Не удалось загрузить: " + err.message);
+    setConn("⚠ "+err.message,"red");
+  } finally {
+    dz.classList.remove("uploading");
+  }
 });
 
 /* close publish modal on backdrop click + Esc */

@@ -20,18 +20,45 @@ const HEADER_ROW = 5;           // строка с заголовками
 const FIRST_DATA_ROW = 6;       // строка, с которой начинаются посты
 
 // Карта колонок (1-based). При initSheet() недостающие создаются автоматически.
+// Base-поля = Instagram (главная платформа). Для FB/TG/TT/YT/VK — override-блоки.
 const COLS = {
-  datetime:  { col: 1, header: 'Дата, время публикации' },
-  title:     { col: 2, header: 'Публикация' },
-  mode:      { col: 3, header: 'Режим' },
-  text:      { col: 4, header: 'Текст' },
-  media:     { col: 5, header: 'Медиа' },
-  cover:     { col: 6, header: 'Обложка' },
-  status:    { col: 7, header: 'Статус' },
-  hashtags:  { col: 8, header: 'Хэштеги' },
-  owner:     { col: 9, header: 'Ответственный' },
-  checks:    { col: 10, header: 'Чек-лист (JSON)' },
-  notes:     { col: 11, header: 'Заметки' }
+  datetime:    { col: 1,  header: 'Дата, время публикации' },
+  title:       { col: 2,  header: 'Публикация' },
+  mode:        { col: 3,  header: 'Режим' },
+  text:        { col: 4,  header: 'Текст (IG / база)' },
+  media:       { col: 5,  header: 'Медиа (IG / база)' },
+  cover:       { col: 6,  header: 'Обложка (IG / база)' },
+  status:      { col: 7,  header: 'Статус' },
+  hashtags:    { col: 8,  header: 'Хэштеги (IG / база)' },
+  owner:       { col: 9,  header: 'Ответственный' },
+  checks:      { col: 10, header: 'Чек-лист (JSON)' },
+  notes:       { col: 11, header: 'Заметки' },
+  platforms:   { col: 12, header: 'Площадки' },
+  // Facebook override
+  text_fb:     { col: 13, header: 'Текст FB' },
+  hashtags_fb: { col: 14, header: 'Хэштеги FB' },
+  media_fb:    { col: 15, header: 'Медиа FB' },
+  cover_fb:    { col: 16, header: 'Обложка FB' },
+  // Telegram override
+  text_tg:     { col: 17, header: 'Текст TG' },
+  hashtags_tg: { col: 18, header: 'Хэштеги TG' },
+  media_tg:    { col: 19, header: 'Медиа TG' },
+  cover_tg:    { col: 20, header: 'Обложка TG' },
+  // TikTok override
+  text_tt:     { col: 21, header: 'Текст TT' },
+  hashtags_tt: { col: 22, header: 'Хэштеги TT' },
+  media_tt:    { col: 23, header: 'Медиа TT' },
+  cover_tt:    { col: 24, header: 'Обложка TT' },
+  // YouTube override
+  text_yt:     { col: 25, header: 'Текст YT' },
+  hashtags_yt: { col: 26, header: 'Хэштеги YT' },
+  media_yt:    { col: 27, header: 'Медиа YT' },
+  cover_yt:    { col: 28, header: 'Обложка YT' },
+  // VK override
+  text_vk:     { col: 29, header: 'Текст VK' },
+  hashtags_vk: { col: 30, header: 'Хэштеги VK' },
+  media_vk:    { col: 31, header: 'Медиа VK' },
+  cover_vk:    { col: 32, header: 'Обложка VK' }
 };
 
 /** Запустите один раз из редактора Apps Script — добавит недостающие заголовки. */
@@ -56,6 +83,13 @@ function initSheet() {
   sheet.setColumnWidth(COLS.owner.col, 110);
   sheet.setColumnWidth(COLS.checks.col, 200);
   sheet.setColumnWidth(COLS.notes.col, 200);
+  sheet.setColumnWidth(COLS.platforms.col, 160);
+  // Override-колонки — узкие, чтобы шапка не растягивалась
+  ['text_fb','hashtags_fb','media_fb','cover_fb',
+   'text_tg','hashtags_tg','media_tg','cover_tg',
+   'text_tt','hashtags_tt','media_tt','cover_tt',
+   'text_yt','hashtags_yt','media_yt','cover_yt',
+   'text_vk','hashtags_vk','media_vk','cover_vk'].forEach(f => sheet.setColumnWidth(COLS[f].col, 180));
   SpreadsheetApp.getUi().alert('Готово. Колонки на месте. Можно запускать seedPosts() или подключать пульт.');
 }
 
@@ -97,11 +131,12 @@ function seedPosts() {
   const lastCol = Math.max.apply(null, Object.values(COLS).map(c => c.col));
   const rows = SEED.map(function(item) {
     const row = new Array(lastCol).fill('');
-    row[COLS.datetime.col - 1] = new Date(item[0]);
-    row[COLS.title.col - 1]    = item[1];
-    row[COLS.mode.col - 1]     = item[2];
-    row[COLS.status.col - 1]   = 'draft';
-    row[COLS.owner.col - 1]    = 'Аня';
+    row[COLS.datetime.col - 1]  = new Date(item[0]);
+    row[COLS.title.col - 1]     = item[1];
+    row[COLS.mode.col - 1]      = item[2];
+    row[COLS.status.col - 1]    = 'draft';
+    row[COLS.owner.col - 1]     = 'Аня';
+    row[COLS.platforms.col - 1] = 'Instagram, Facebook';
     return row;
   });
   const startRow = Math.max(sheet.getLastRow() + 1, FIRST_DATA_ROW);
@@ -139,6 +174,10 @@ function handle_(payload) {
       const r = deletePost_(payload.rowIndex);
       return json_({ ok: true, deleted: r });
     }
+    if (payload.action === 'upload') {
+      const r = uploadFile_(payload);
+      return json_({ ok: true, url: r.url, fileId: r.fileId, name: r.name });
+    }
     return json_({ ok: false, error: 'unknown action: ' + payload.action });
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message || err) });
@@ -161,7 +200,7 @@ function readAll_() {
     if (checksRaw) {
       try { checks = JSON.parse(checksRaw); } catch (_) {}
     }
-    posts.push({
+    const post = {
       rowIndex: FIRST_DATA_ROW + i,
       datetime: dt instanceof Date ? dt.toISOString() : String(dt || ''),
       title: String(title || ''),
@@ -173,10 +212,41 @@ function readAll_() {
       hashtags: String(row[COLS.hashtags.col - 1] || ''),
       owner: String(row[COLS.owner.col - 1] || ''),
       checks: checks,
-      notes: String(row[COLS.notes.col - 1] || '')
+      notes: String(row[COLS.notes.col - 1] || ''),
+      platforms: String(row[COLS.platforms.col - 1] || '')
+    };
+    // Override-поля по платформам
+    ['fb','tg','tt','yt','vk'].forEach(function(s) {
+      ['text','hashtags','media','cover'].forEach(function(f) {
+        const key = f + '_' + s;
+        post[key] = String(row[COLS[key].col - 1] || '');
+      });
     });
+    posts.push(post);
   });
   return posts;
+}
+
+/** Загрузить файл в общую папку Drive и вернуть публичную ссылку. */
+function uploadFile_(p) {
+  if (!p || !p.dataBase64) throw new Error('Нет данных файла');
+  if (!p.folderUrl) throw new Error('Не указана папка Drive (в Настройках пульта)');
+  const m = String(p.folderUrl).match(/folders\/([a-zA-Z0-9_-]+)/);
+  if (!m) throw new Error('Не получилось распознать папку Drive в URL');
+  const folder = DriveApp.getFolderById(m[1]);
+  const bytes = Utilities.base64Decode(p.dataBase64);
+  const blob = Utilities.newBlob(bytes, p.mimeType || 'application/octet-stream', p.filename || 'upload');
+  const file = folder.createFile(blob);
+  try {
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  } catch (e) {
+    // Иногда нужно установить только access, отдельно permission. Тихо игнорим, ссылка всё равно вернётся.
+  }
+  return {
+    url: 'https://drive.google.com/file/d/' + file.getId() + '/view',
+    fileId: file.getId(),
+    name: file.getName()
+  };
 }
 
 function updateField_(rowIndex, field, value) {
