@@ -676,7 +676,7 @@
   <div class="pin-box">
     <h2 id="pinTitle">🔒 Введите PIN</h2>
     <div class="pin-sub">Доступ к пульту «Золотые яйца» защищён PIN-кодом.</div>
-    <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" maxlength="32" placeholder="••••">
+    <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="4" placeholder="••••">
     <div id="pinErr" class="pin-err"></div>
     <div class="pin-actions">
       <button id="pinSubmit" class="btn primary" type="button">Войти</button>
