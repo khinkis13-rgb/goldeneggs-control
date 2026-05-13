@@ -285,9 +285,6 @@
   /* Ручная ссылка (свёрнутый блок) */
   .add-media-btn{margin-top:8px;width:100%;border:1px dashed var(--line);background:transparent;color:var(--muted);padding:10px;text-align:center}
   .add-media-btn:hover{border-color:var(--gold-dim);color:var(--gold);background:rgba(230,184,100,.04)}
-  .manual-link{margin-top:8px}
-  .manual-link summary{font-size:12px;color:var(--muted);padding:4px 0}
-  .manual-link input,.manual-link textarea{margin-top:6px;font-size:13px}
 
   /* ANYA focus mode */
   .anya-progress{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:14px}
@@ -1675,10 +1672,6 @@ function uploaderCover(postId, sufx, value, label){
       <div class="uploader-sub">или <b>нажмите чтобы выбрать</b> с компьютера · JPG / PNG / MP4 · до 50 МБ</div>
       ${UPLOADER_STATUS_HTML}
     </div>
-    <details class="manual-link">
-      <summary>Или вставить ссылку на Drive вручную</summary>
-      <input type="url" data-field="cover${sufxAttr}" data-id="${postId}" value="${escape(value||"")}" placeholder="https://drive.google.com/file/d/.../view">
-    </details>
   `;
 }
 function uploaderMedia(postId, sufx, value, label){
@@ -1693,10 +1686,6 @@ function uploaderMedia(postId, sufx, value, label){
       <div class="uploader-sub">или <b>нажмите чтобы выбрать</b> · можно сразу несколько · до 50 МБ каждый</div>
       ${UPLOADER_STATUS_HTML}
     </div>
-    <details class="manual-link">
-      <summary>Или вставить ссылки вручную (по одной на строку)</summary>
-      <textarea data-field="media${sufxAttr}" data-id="${postId}" rows="2" placeholder="https://drive.google.com/file/d/.../view">${escape(value||"")}</textarea>
-    </details>
   `;
 }
 
@@ -3083,13 +3072,9 @@ async function ingestFiles(files, postId, kind /* "cover"|"media" */, sufx, uplo
       const url = withMeta(rawUrl, file.name, file.size);
       if(kind === "cover"){
         p[fieldName] = url;
-        const el = document.querySelector(`input[data-field="${fieldName}"][data-id="${postId}"]`);
-        if(el) el.value = url;
       } else {
         const cur = (p[fieldName]||"").trim();
         p[fieldName] = cur ? cur + "\n" + url : url;
-        const el = document.querySelector(`textarea[data-field="${fieldName}"][data-id="${postId}"]`);
-        if(el) el.value = p[fieldName];
       }
       saveState();
       const ri = rowIndexOf(p); if(ri) pushField(ri, fieldName, p[fieldName], 0);
@@ -3156,19 +3141,6 @@ function parsePreviewId(elId, prefix){
   if(!m) return null;
   return {postId: m[1], sufx: m[2] || ""};
 }
-function syncManualLinkAfterDelete(el, kind, hasValue){
-  const det = el && el.closest("details.manual-link");
-  if(!det) return;
-  if(!hasValue) det.open = true;
-  const sum = det.querySelector("summary");
-  if(sum){
-    if(hasValue){
-      sum.textContent = kind === "cover" ? "🔗 Изменить ссылку вручную" : "🔗 Изменить ссылки вручную";
-    } else {
-      sum.textContent = kind === "cover" ? "➕ Вставить ссылку на обложку" : "➕ Вставить ссылки на картинки/видео";
-    }
-  }
-}
 async function removeMediaAt(postId, sufx, idx){
   const p = state.posts[postId]; if(!p) return;
   const field = "media" + (sufx||"");
@@ -3177,9 +3149,6 @@ async function removeMediaAt(postId, sufx, idx){
   list.splice(idx, 1);
   p[field] = serializeMediaList(list);
   saveState();
-  const ta = document.querySelector(`textarea[data-field="${field}"][data-id="${postId}"]`);
-  if(ta) ta.value = p[field];
-  syncManualLinkAfterDelete(ta, "media", !!p[field]);
   refreshPreviewImmediate(postId, "media", p[field], sufx||"");
   const ri = rowIndexOf(p); if(ri) pushField(ri, field, p[field], 0);
   updateAnyaProgressLight();
@@ -3190,9 +3159,6 @@ async function removeCover(postId, sufx){
   const field = "cover" + (sufx||"");
   p[field] = "";
   saveState();
-  const inp = document.querySelector(`input[data-field="${field}"][data-id="${postId}"]`);
-  if(inp) inp.value = "";
-  syncManualLinkAfterDelete(inp, "cover", false);
   refreshPreviewImmediate(postId, "cover", "", sufx||"");
   const ri = rowIndexOf(p); if(ri) pushField(ri, field, "", 0);
   updateAnyaProgressLight();
