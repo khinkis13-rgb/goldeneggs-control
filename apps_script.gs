@@ -21,7 +21,7 @@ const FIRST_DATA_ROW = 6;       // строка, с которой начина�
 
 // PIN-код для доступа к пульту. Замените на свой и переразверните Web App.
 // Любой запрос без правильного PIN получит {ok:false, code:'PIN_REQUIRED'}.
-const APP_PIN = '<PASTE_PIN>';
+const APP_PIN = '1405';
 
 // Карта колонок (1-based). При initSheet() недостающие создаются автоматически.
 // Base-поля = Instagram (главная платформа). Для FB/TG/TT/YT/VK — override-блоки.
