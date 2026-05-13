@@ -284,6 +284,10 @@ function handle_(payload) {
       const r = uploadFile_(payload);
       return json_({ ok: true, url: r.url, fileId: r.fileId, name: r.name });
     }
+    if (payload.action === 'zipMedia') {
+      const r = zipMedia_(payload);
+      return json_(r);
+    }
     if (payload.action === 'readProfiles') {
       return json_({
         ok: true,
@@ -373,6 +377,146 @@ function uploadFile_(p) {
     fileId: file.getId(),
     name: file.getName()
   };
+}
+
+/**
+ * Собирает все указанные файлы (Drive-id или внешние http(s)) в один ZIP,
+ * сохраняет в папку Drive из настроек (или в корень My Drive) и возвращает
+ * прямую ссылку на скачивание.
+ *
+ * Вход:
+ *   p.urls       — массив строк (URL Drive или http(s))
+ *   p.filename   — основа имени архива без .zip
+ *   p.folderUrl  — URL папки Drive (опционально)
+ *
+ * Выход: { ok, url, viewUrl, fileId, count, requested, sizeBytes, skipped[] }
+ */
+function zipMedia_(p) {
+  const urls = (p && p.urls) || [];
+  if (!urls.length) throw new Error('Нет ссылок для архивации');
+
+  // Куда сохранять архив
+  let folder = null;
+  if (p.folderUrl) {
+    const m = String(p.folderUrl).match(/folders\/([a-zA-Z0-9_-]+)/);
+    if (m) {
+      try { folder = DriveApp.getFolderById(m[1]); } catch (_) {}
+    }
+  }
+  if (!folder) folder = DriveApp.getRootFolder();
+
+  // Чистим архивы старше 24 ч в той же папке
+  try { cleanupOldZips_(folder); } catch (_) {}
+
+  const blobs = [];
+  const skipped = [];
+  const usedNames = {};
+
+  urls.forEach(function(rawUrl, idx) {
+    const u = String(rawUrl || '').split('#')[0].trim();
+    if (!u) return;
+    let blob = null;
+    let baseName = '';
+
+    const id = extractDriveId_(u);
+    if (id) {
+      try {
+        const file = DriveApp.getFileById(id);
+        blob = file.getBlob();
+        baseName = file.getName();
+      } catch (err) {
+        skipped.push({ url: u, reason: 'Drive: ' + (err && err.message || err) });
+        return;
+      }
+    } else if (/^https?:\/\//i.test(u)) {
+      try {
+        const resp = UrlFetchApp.fetch(u, { muteHttpExceptions: true, followRedirects: true });
+        const code = resp.getResponseCode();
+        if (code >= 400) { skipped.push({ url: u, reason: 'HTTP ' + code }); return; }
+        blob = resp.getBlob();
+        const tail = u.split('/').pop() || ('file_' + (idx + 1));
+        baseName = decodeURIComponent(tail.split('?')[0] || ('file_' + (idx + 1)));
+      } catch (err) {
+        skipped.push({ url: u, reason: 'fetch: ' + (err && err.message || err) });
+        return;
+      }
+    } else {
+      skipped.push({ url: u, reason: 'не Drive и не http(s)' });
+      return;
+    }
+
+    let nm = baseName || ('file_' + (idx + 1));
+    if (usedNames[nm]) {
+      const dot = nm.lastIndexOf('.');
+      const stem = dot > 0 ? nm.slice(0, dot) : nm;
+      const ext = dot > 0 ? nm.slice(dot) : '';
+      let i = 2;
+      while (usedNames[stem + '_' + i + ext]) i++;
+      nm = stem + '_' + i + ext;
+    }
+    usedNames[nm] = true;
+    blob.setName(nm);
+    blobs.push(blob);
+  });
+
+  if (!blobs.length) {
+    return { ok: false, error: 'Ни один файл не удалось получить', requested: urls.length, skipped: skipped };
+  }
+
+  const stem = sanitizeFilename_(p.filename || 'media');
+  const zipName = 'goldeneggs-zip-' + stem + '-' + nowStamp_() + '.zip';
+  const zipBlob = Utilities.zip(blobs, zipName);
+  const file = folder.createFile(zipBlob);
+  try {
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  } catch (_) {}
+  const fileId = file.getId();
+  return {
+    ok: true,
+    url: 'https://drive.google.com/uc?export=download&id=' + fileId,
+    viewUrl: 'https://drive.google.com/file/d/' + fileId + '/view',
+    fileId: fileId,
+    count: blobs.length,
+    requested: urls.length,
+    sizeBytes: file.getSize(),
+    skipped: skipped
+  };
+}
+
+function extractDriveId_(url) {
+  if (!url) return '';
+  const s = String(url);
+  let m = s.match(/\/file\/d\/([a-zA-Z0-9_-]{10,})/);
+  if (m) return m[1];
+  m = s.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
+  if (m) return m[1];
+  m = s.match(/\/d\/([a-zA-Z0-9_-]{10,})/);
+  if (m) return m[1];
+  return '';
+}
+
+function sanitizeFilename_(s) {
+  return String(s || '').replace(/[^\p{L}\p{N}_\-]+/gu, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'media';
+}
+
+function nowStamp_() {
+  const d = new Date();
+  function p(n) { return n < 10 ? '0' + n : '' + n; }
+  return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+}
+
+function cleanupOldZips_(folder) {
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  const it = folder.getFiles();
+  let processed = 0;
+  while (it.hasNext() && processed < 50) {
+    const f = it.next();
+    processed++;
+    const name = f.getName();
+    if (name.indexOf('goldeneggs-zip-') !== 0) continue;
+    if (f.getLastUpdated().getTime() > cutoff) continue;
+    try { f.setTrashed(true); } catch (_) {}
+  }
 }
 
 function updateField_(rowIndex, field, value) {

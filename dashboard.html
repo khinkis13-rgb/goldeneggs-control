@@ -1428,7 +1428,7 @@ function postCard(p){
     <div class="actions">
       ${saveBtnHtmlPost(p.id)}
       <button class="btn primary publish-btn" data-id="${p.id}">🚀 Публикую</button>
-      <button class="btn copy-text" data-id="${p.id}">📋 Скопировать</button>
+      <button class="btn copy-text" data-id="${p.id}" title="Скопировать текст + хэштеги одним блоком">📋 Текст + хэштеги</button>
       <button class="btn copy-tags" data-id="${p.id}">#️⃣ Хэштеги</button>
       <button class="btn ghost danger del-post" data-id="${p.id}" title="Удалить">✕</button>
     </div>
@@ -1555,6 +1555,33 @@ function buildFullTextFor(p, plat){
   const tags = (c.hashtags || state.settings.baseHashtags || "").trim();
   return (c.text||"").trim() + (tags?("\n\n"+tags):"");
 }
+
+async function downloadMediaZip(p, plat, btn){
+  if(!isOnline()){ alert("Сначала подключите бэкенд в Настройках"); return; }
+  const c = contentForPlatform(p, plat);
+  const urls = [];
+  if(c.cover) urls.push(String(c.cover).split("#")[0]);
+  parseMediaList(c.media).forEach(it => { if(it && it.url) urls.push(String(it.url).split("#")[0]); });
+  if(!urls.length){ alert("В этом посте нет файлов для архивации"); return; }
+
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Собираем архив… (это может занять до минуты)";
+  try{
+    const stem = (p.title || "post").trim() + "-" + plat;
+    const res = await api({ action:"zipMedia", urls: urls, filename: stem, folderUrl: state.settings.mediaFolder || "" });
+    if(!res || !res.ok){ throw new Error((res && res.error) || "Бэкенд не вернул архив"); }
+    window.open(res.url, "_blank", "noopener");
+    let msg = `✓ Архив готов · ${res.count}/${res.requested}`;
+    if(res.skipped && res.skipped.length) msg += " · пропущено: " + res.skipped.length;
+    flash(msg);
+  }catch(err){
+    alert("Не удалось скачать архив: " + (err && err.message || err));
+  }finally{
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
 function openPublishModal(postId, platformHint){
   const p = state.posts[postId];
   if(!p) return;
@@ -1583,6 +1610,10 @@ function renderPublishModal(p, plat){
         return `<a class="pm-mi" href="${escape(it.url)}" target="_blank" rel="noopener" title="${escape(label)}"><span class="pm-mi-num">${i+1}</span>${prev?`<img src="${escape(prev)}" loading="lazy" onerror="this.style.display='none';this.parentElement.appendChild(Object.assign(document.createElement('span'),{textContent:'нет превью'}))">`:`<span>файл ${i+1}</span>`}</a>`;
       }).join("")}</div>
       <button class="btn pm-open-all" data-urls='${escape(JSON.stringify(mediaList.map(it=>it.url)))}'>📂 Открыть все картинки в новых вкладках</button>`
+    : "";
+
+  const zipBtn = (coverPrev || mediaList.length)
+    ? `<button class="btn primary pm-download-zip" data-id="${p.id}" data-platform="${escape(plat)}" style="width:100%;margin-bottom:8px;justify-content:center;padding:10px 14px">💾 Скачать всё архивом</button>`
     : "";
 
   const noMedia = (!coverPrev && !mediaList.length)
@@ -1634,6 +1665,7 @@ function renderPublishModal(p, plat){
         <div class="field-hint">Это то, что вставится в пост. Если хочется поправить — закройте окно и отредактируйте карточку.</div>
       </div>
       <div>
+        ${zipBtn}
         ${coverBlock}
         ${mediaBlock}
         ${noMedia}
@@ -2593,6 +2625,9 @@ document.addEventListener("click", e => {
       const urls = JSON.parse(t.dataset.urls);
       urls.forEach((u,i)=> setTimeout(()=> window.open(u, "_blank", "noopener"), i*120));
     }catch(err){ alert("Не удалось открыть ссылки: "+err.message); }
+  } else if(t.matches(".pm-download-zip")){
+    const p = state.posts[t.dataset.id]; if(!p) return;
+    downloadMediaZip(p, t.dataset.platform || "Instagram", t);
   } else if(t.matches("[data-close-pm]")){
     closePublishModal();
   } else if(t.matches("[data-mark-published]")){
