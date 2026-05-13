@@ -354,6 +354,17 @@
   .af-counter{color:var(--muted);font-size:13px;text-align:center;flex:1}
   .af-empty{padding:40px;text-align:center;background:var(--panel);border:1px dashed var(--line);border-radius:var(--radius);color:var(--muted)}
 
+  /* NOTES — техническая заметка Ани → Дмитрию (не публикуется) */
+  .notes-block{background:rgba(230,197,98,.08);border:1px solid #7a6420;border-left:3px solid var(--gold);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+  .notes-block.filled{background:rgba(230,197,98,.14)}
+  .notes-block .nb-label{font-size:12px;color:var(--warn);font-weight:600;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:6px}
+  .notes-block .nb-hint{font-size:12px;color:var(--muted);line-height:1.4}
+  .notes-block textarea{min-height:60px;background:var(--bg2);border:1px solid var(--line);border-radius:8px;font-size:14px;line-height:1.45;padding:8px 10px;color:var(--cream);font-family:inherit;resize:vertical}
+  .notes-block textarea:focus{outline:none;border-color:var(--gold-dim)}
+  .pm-notes{background:rgba(230,197,98,.14);border:1px solid #7a6420;border-left:3px solid var(--gold);border-radius:10px;padding:12px 14px;margin-bottom:14px}
+  .pm-notes .pm-notes-label{font-size:12px;color:var(--warn);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+  .pm-notes .pm-notes-text{color:var(--cream);font-size:14px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+
   /* LIGHTBOX */
   .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;z-index:60;padding:24px}
   .lightbox.show{display:flex}
@@ -855,6 +866,7 @@ const DEFAULT_FIELDS = Object.assign({
   text:"", hashtags:"", media:"", cover:"", owner:"Аня",
   status:"draft", // draft | review | ready | published
   platforms:"Instagram",
+  notes:"", // Заметки от Ани Дмитрию — НЕ публикуется, только справочно
   checks:{visual:false, text:false, geo:false, hashtags:false, link:false, sound:false}
 }, OVERRIDE_FIELDS);
 
@@ -1273,6 +1285,11 @@ function postCard(p){
       <textarea data-field="text" data-id="${p.id}" placeholder="Здесь Аня (или вы) пишет текст поста...">${escape(p.text||"")}</textarea>
     </div>
 
+    <div class="notes-block ${(p.notes||"").trim()?"filled":""}">
+      <div class="nb-label">📝 Заметка от Ани <span class="nb-hint">(не публикуется)</span></div>
+      <textarea data-field="notes" data-id="${p.id}" placeholder="Пометки, инструкции, нюансы публикации...">${escape(p.notes||"")}</textarea>
+    </div>
+
     <details>
       <summary>#️⃣ Хэштеги · ответственный</summary>
       <div style="margin-top:8px">
@@ -1462,6 +1479,11 @@ function renderPublishModal(p, plat){
     ? (usingOverride ? `Показан свой контент для ${plat}` : `Показан базовый контент (взят из IG)`)
     : "";
 
+  const anyaNote = (p.notes||"").trim();
+  const anyaNoteBlock = anyaNote
+    ? `<div class="pm-notes"><div class="pm-notes-label">📝 Заметка от Ани</div><div class="pm-notes-text">${escape(anyaNote)}</div></div>`
+    : "";
+
   const html = `
     <div class="pm-head">
       <div>
@@ -1475,6 +1497,8 @@ function renderPublishModal(p, plat){
       </div>
       <button class="btn ghost" data-close-pm title="Закрыть">✕</button>
     </div>
+
+    ${anyaNoteBlock}
 
     ${tabs}
 
@@ -1829,6 +1853,11 @@ function renderAnya(){
       <div class="af-block">
         <div class="af-label">✍️ Текст поста — для всех платформ по умолчанию</div>
         <textarea data-field="text" data-id="${p.id}" placeholder="Напишите текст поста...">${escape(p.text||"")}</textarea>
+      </div>
+
+      <div class="notes-block ${(p.notes||"").trim()?"filled":""}">
+        <div class="nb-label">📝 Заметка для Дмитрия <span class="nb-hint">(не публикуется)</span></div>
+        <textarea data-field="notes" data-id="${p.id}" placeholder="Например: «обрезать обложку сверху», «опубликовать только в Reels», «здесь нужна геолокация»...">${escape(p.notes||"")}</textarea>
       </div>
 
       <details>
@@ -2554,6 +2583,10 @@ document.addEventListener("input", e => {
     }
     if(["text","media","cover","title"].includes(field)){
       updateAnyaProgressLight();
+    }
+    if(field === "notes"){
+      const block = t.closest(".notes-block");
+      if(block) block.classList.toggle("filled", !!t.value.trim());
     }
   }
   // Профили (вкладка «Страницы»)
