@@ -68,7 +68,8 @@
   .toolbar:not(.toolbar-all) > #btnAdd{display:none}
   .toolbar.toolbar-all #btnAdd{display:inline-flex}
   #btnReload{font-size:18px;line-height:1;padding:7px 12px;min-width:38px}
-  #btnReload.spin{animation:spin 1s linear infinite}
+  #btnReload .ico{display:inline-block;transform-origin:50% 50%}
+  #btnReload.spin .ico{animation:spin 1s linear infinite}
   @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
   .toolbar select{background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--txt);padding:7px 10px}
   .toolbar .spacer{flex:1}
@@ -205,6 +206,69 @@
   .file-card.ghost .gh-name{color:var(--cream);font-weight:600;font-size:14px}
   .file-card.ghost .gh-sub{color:var(--muted);font-size:12px;margin-top:2px}
   @keyframes pulse{0%,100%{opacity:.65}50%{opacity:1}}
+
+  /* ===== Вкладка «Страницы» ===== */
+  .pages-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:18px}
+  .page-card{background:var(--bg2);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+  .page-head{position:relative;background:#000}
+  .page-head .pc-cover-zone{position:relative;width:100%;aspect-ratio:2.7/1;background:linear-gradient(135deg,#2a2017,#1b160c);background-size:cover;background-position:center;cursor:pointer;transition:.15s}
+  .page-head .pc-cover-zone.square{aspect-ratio:1/1;max-height:280px}
+  .page-head .pc-cover-zone.wide{aspect-ratio:2.5/1}
+  .page-head .pc-cover-zone.youtube{aspect-ratio:16/9;max-height:300px}
+  .page-head .pc-cover-zone.no-cover{display:none}
+  .page-head .pc-cover-zone.drag-over{outline:2px solid var(--gold);outline-offset:-2px}
+  .page-head .pc-cover-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);font-size:13px;gap:6px;text-align:center;padding:12px;background:rgba(0,0,0,.35)}
+  .page-head .pc-cover-empty span{font-size:24px}
+  .page-head .pc-cover-hint{position:absolute;left:12px;bottom:12px;background:rgba(0,0,0,.55);color:#fff;padding:4px 8px;border-radius:6px;font-size:11px;opacity:0;transition:.15s}
+  .page-head .pc-cover-zone:hover .pc-cover-hint{opacity:1}
+  .page-head .pc-cover-zone.drag-over .pc-cover-hint{opacity:1;background:var(--gold);color:#1b160c}
+  .page-head .pc-cover-zone.uploading{outline:2px dashed var(--gold);outline-offset:-2px}
+  .page-head .pc-cover-zone.uploading::after{content:"⏳ Загрузка…";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);color:var(--gold);font-weight:600}
+  .page-head .pc-platform-pill{position:absolute;top:12px;right:12px;background:rgba(0,0,0,.55);color:#fff;padding:4px 10px;border-radius:99px;font-size:12px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;display:flex;align-items:center;gap:6px}
+  .page-head .pc-avatar-zone{position:absolute;left:18px;bottom:-36px;width:84px;height:84px;border-radius:50%;border:3px solid #1b160c;background:#2a2017;cursor:pointer;overflow:hidden;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:24px;transition:.15s}
+  .page-head .pc-avatar-zone.no-head{position:relative;left:auto;bottom:auto;margin:14px 0 0 14px}
+  .page-head .pc-avatar-zone.drag-over{border-color:var(--gold)}
+  .page-head .pc-avatar-zone.uploading{outline:2px dashed var(--gold)}
+  .page-head .pc-avatar-zone img{width:100%;height:100%;object-fit:cover}
+  .page-head.no-cover{padding-bottom:14px}
+  .page-body{padding:48px 18px 18px;display:flex;flex-direction:column;gap:12px}
+  .page-card.no-cover .page-body{padding-top:14px}
+  .page-row{display:flex;flex-direction:column;gap:4px}
+  .page-row label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:6px}
+  .page-row .char-counter{font-size:10px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0}
+  .page-row .char-counter.over{color:#e07a5f;font-weight:600}
+  .page-row input,.page-row textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;color:var(--cream);font-size:14px;font-family:inherit;resize:vertical}
+  .page-row textarea{min-height:60px;line-height:1.45}
+  .page-row textarea.tall{min-height:100px}
+  .page-row input:focus,.page-row textarea:focus{border-color:var(--gold-dim);outline:none}
+  .page-actions{display:flex;flex-wrap:wrap;gap:8px;padding-top:4px;border-top:1px dashed var(--line);margin-top:4px;padding-top:12px}
+  .page-actions .small-meta{flex:1;font-size:11px;color:var(--muted);align-self:center}
+
+  .highlights-section{padding:0 18px 18px;display:flex;flex-direction:column;gap:10px}
+  .highlights-section h4{margin:0;font-size:13px;color:var(--gold);text-transform:uppercase;letter-spacing:.6px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+  .highlights-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+  .highlight-tile{position:relative;aspect-ratio:1;background:var(--bg);border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
+  .highlight-tile:hover{border-color:var(--gold-dim)}
+  .highlight-tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .highlight-tile .ht-label{position:relative;z-index:1;font-size:11px;color:#fff;background:linear-gradient(to top,rgba(0,0,0,.85),rgba(0,0,0,0));padding:14px 6px 6px;width:100%;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .highlight-tile.empty{background:repeating-linear-gradient(45deg,var(--bg) 0 8px,var(--bg2) 8px 16px)}
+  .highlight-tile .ht-actions{position:absolute;top:4px;right:4px;display:flex;gap:2px;opacity:0;transition:.15s;z-index:2}
+  .highlight-tile:hover .ht-actions{opacity:1}
+  .highlight-tile .ht-actions button{background:rgba(0,0,0,.7);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .highlight-tile .ht-actions button:hover{background:var(--gold);color:#1b160c}
+  .highlight-add{aspect-ratio:1;background:transparent;border:2px dashed var(--line);color:var(--muted);border-radius:10px;cursor:pointer;font-size:24px;display:flex;align-items:center;justify-content:center;transition:.15s}
+  .highlight-add:hover{border-color:var(--gold-dim);color:var(--gold)}
+
+  .pages-empty{padding:28px;text-align:center;color:var(--muted);font-size:14px}
+  .pages-banner{background:rgba(230,184,100,.08);border:1px solid var(--gold-dim);border-radius:12px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--cream)}
+  .pages-banner button{margin-left:auto}
+
+  @media (max-width:720px){
+    .pages-grid{grid-template-columns:1fr;gap:14px}
+    .page-head .pc-cover-zone{aspect-ratio:2.2/1}
+    .page-head .pc-cover-zone.youtube{aspect-ratio:16/9}
+    .highlights-grid{grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:8px}
+  }
 
   /* Карточка одного файла (для обложки) */
   .file-card{display:flex;gap:12px;align-items:center;padding:8px;background:var(--bg2);border:1px solid var(--line);border-radius:12px;position:relative;margin-bottom:8px}
@@ -399,6 +463,7 @@
     nav.tabs button[data-tab="cal"]::before{content:"📅"}
     nav.tabs button[data-tab="all"]::before{content:"📋"}
     nav.tabs button[data-tab="anya"]::before{content:"✍️"}
+    nav.tabs button[data-tab="pages"]::before{content:"🏠"}
     nav.tabs button[data-tab="settings"]::before{content:"⚙️"}
     nav.tabs button[data-tab="help"]::before{content:"❓"}
 
@@ -701,6 +766,7 @@
     <button data-tab="cal">Календарь</button>
     <button data-tab="all">Все посты</button>
     <button data-tab="anya">Аня</button>
+    <button data-tab="pages">Страницы</button>
     <button data-tab="settings">Настройки</button>
     <button data-tab="help">Как пользоваться</button>
   </nav>
@@ -717,7 +783,7 @@
     <select id="filterMode"><option value="">Все типы</option></select>
     <div class="spacer"></div>
     <span id="connStatus" class="pill" title="Google-таблица не подключена — данные хранятся только в этом браузере. Зайдите в «Настройки», чтобы подключить Sheets.">🔌 Не подключено</span>
-    <button class="btn ghost" id="btnReload" title="Обновить данные из Google-таблицы">⟳</button>
+    <button class="btn ghost" id="btnReload" title="Обновить данные из Google-таблицы"><span class="ico">⟳</span></button>
     <a id="btnMediaFolder" class="btn" target="_blank" rel="noopener" style="display:none" title="Открыть папку Google Drive с медиа">📁 Медиа в Drive</a>
     <button class="btn" id="btnAdd" title="Создать пост вне расписания — например, срочный анонс">+ Новый пост</button>
   </div>
@@ -737,6 +803,7 @@
   <section id="sec-cal"></section>
   <section id="sec-all"></section>
   <section id="sec-anya"></section>
+  <section id="sec-pages"></section>
   <section id="sec-settings"></section>
   <section id="sec-help"></section>
 
@@ -860,12 +927,14 @@ function loadState(){
       // а не в localStorage (иначе старые сейвы со плейсхолдерами ломают подключение).
       s.settings.backendUrl = DEFAULT_SETTINGS.backendUrl;
       s.settings.mediaFolder = DEFAULT_SETTINGS.mediaFolder;
+      if(!s.profiles) s.profiles = {};
+      if(!Array.isArray(s.highlights)) s.highlights = [];
       return s;
     }
   }catch(e){}
   const posts = {};
   SEED_POSTS.forEach(p => { posts[p.id] = Object.assign({}, DEFAULT_FIELDS, p, {checks:Object.assign({},DEFAULT_FIELDS.checks)}); });
-  return {posts, settings:JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), activeTab:"today"};
+  return {posts, profiles:{}, highlights:[], settings:JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), activeTab:"today"};
 }
 function saveState(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(_){} }
 
@@ -976,6 +1045,8 @@ async function loadFromBackend({silent=false}={}){
     });
     state.posts = posts;
     saveState();
+    // Загрузить профили/highlights параллельно (не критично если упадёт)
+    loadProfilesFromBackend({silent:true}).catch(()=>{});
     render();
     setConn("✓ Online · "+(Object.keys(posts).length)+" постов","ok");
     if(!silent) flash("Загружено из Google-таблицы");
@@ -988,6 +1059,67 @@ async function loadFromBackend({silent=false}={}){
     if(reloadBtn) reloadBtn.classList.remove("spin");
   }
 }
+
+async function loadProfilesFromBackend({silent=true}={}){
+  if(!isOnline()) return false;
+  try{
+    const data = await api({action:"readProfiles"});
+    const profiles = {};
+    (data.profiles||[]).forEach(p => {
+      if(p && p.platform) profiles[p.platform] = p;
+    });
+    state.profiles = profiles;
+    state.highlights = Array.isArray(data.highlights) ? data.highlights : [];
+    saveState();
+    if(typeof renderPages === "function") renderPages();
+    if(!silent) flash("Загружены данные страниц");
+    return true;
+  }catch(err){
+    if(!silent) flash("⚠ Профили: "+err.message);
+    return false;
+  }
+}
+
+const pendingProfile = new Map();
+function pushProfile(platform, patch, debounceMs=400){
+  if(!isOnline() || !platform) return;
+  const cur = state.profiles[platform] || {platform};
+  const merged = Object.assign({}, cur, patch);
+  state.profiles[platform] = merged;
+  saveState();
+  if(pendingProfile.has(platform)) clearTimeout(pendingProfile.get(platform));
+  const t = setTimeout(async () => {
+    pendingProfile.delete(platform);
+    try{
+      setConn("⏳ Сохранение…","warn");
+      const res = await api({action:"saveProfile", profile: state.profiles[platform]});
+      if(res && res.profile && res.profile.updated_at){
+        state.profiles[platform].updated_at = res.profile.updated_at;
+        saveState();
+      }
+      setConn("✓ Сохранено","ok");
+    }catch(err){
+      setConn("⚠ "+err.message,"red");
+    }
+  }, debounceMs);
+  pendingProfile.set(platform, t);
+}
+
+async function saveHighlightRemote(h){
+  if(!isOnline()) throw new Error("Не подключено к Sheets");
+  setConn("⏳ Сохранение…","warn");
+  const res = await api({action:"saveHighlight", highlight: h});
+  setConn("✓ Сохранено","ok");
+  return res.highlight;
+}
+
+async function deleteHighlightRemote(id){
+  if(!isOnline()) throw new Error("Не подключено к Sheets");
+  setConn("⏳ Удаление…","warn");
+  await api({action:"deleteHighlight", id});
+  setConn("✓ Сохранено","ok");
+}
+
 const pending = new Map();
 function pushField(rowIndex, field, value, debounceMs=600){
   if(!isOnline() || !rowIndex) return;
@@ -1059,7 +1191,7 @@ function flash(msg){
 /* ===== RENDER ===== */
 function render(){
   renderStats(); renderFilters();
-  renderToday(); renderCal(); renderAll(); renderAnya(); renderSettings(); renderHelp();
+  renderToday(); renderCal(); renderAll(); renderAnya(); renderPages(); renderSettings(); renderHelp();
   updateMediaFolderBtn();
   $("#brandSub").textContent = (state.settings.tagline||"") + " · единое окно для Дмитрия и Ани";
 }
@@ -1721,7 +1853,16 @@ function renderAnya(){
     </div>
   `;
 
+  const unfinished = isOnline() ? unfinishedProfiles() : [];
+  const pagesBanner = unfinished.length ? `
+    <div class="pages-banner">
+      <span style="font-size:18px">🏠</span>
+      <span>Заполни данные страниц: ${escape(unfinished.join(", "))} — без аватара и имени.</span>
+      <button class="btn primary" data-go-pages>К страницам →</button>
+    </div>
+  ` : "";
   root.innerHTML = `
+    ${pagesBanner}
     <div class="anya-progress" id="anyaProgress">
       <div class="row" style="justify-content:space-between">
         <div><strong>${allDone ? "🎉 Все посты заполнены!" : `Заполнено ${filled} из ${posts.length}`}</strong></div>
@@ -1774,6 +1915,300 @@ function updateAnyaProgressLight(){
       item.title = x.title || "(без названия)";
     });
   }
+}
+
+/* ===== PAGES (профили площадок + highlights) ===== */
+const PROFILE_BIO_LIMITS = {
+  Instagram: 150,
+  Facebook: 0,
+  Telegram: 70,
+  TikTok: 80,
+  YouTube: 0,
+  VK: 140
+};
+const PROFILE_HAS_COVER = {
+  Instagram: false,
+  Facebook: true,
+  Telegram: false,
+  TikTok: false,
+  YouTube: true,
+  VK: true
+};
+const PROFILE_COVER_CLASS = {
+  Facebook: "wide",
+  YouTube: "youtube",
+  VK: "wide"
+};
+const PROFILE_HAS_HIGHLIGHTS = {
+  Instagram: true,
+  Facebook: true,
+  Telegram: true,
+  TikTok: false,
+  YouTube: true,
+  VK: true
+};
+const PROFILE_HIGHLIGHTS_LABEL = {
+  Instagram: "Актуальные истории",
+  Facebook: "Закреплённое",
+  Telegram: "Закреп / описание",
+  YouTube: "Плейлисты / featured",
+  VK: "Закреплённое"
+};
+
+function profileFor(platform){
+  return state.profiles[platform] || {platform};
+}
+function highlightsFor(platform){
+  return (state.highlights||[])
+    .filter(h => h.platform === platform)
+    .sort((a,b) => (a.order_idx - b.order_idx) || String(a.id).localeCompare(String(b.id)));
+}
+function profilesEmpty(){
+  return !PLATFORMS.some(plat => {
+    const p = state.profiles[plat];
+    return p && (p.avatar_url || p.bio || p.handle || p.display_name);
+  });
+}
+
+function renderPages(){
+  const root = $("#sec-pages");
+  if(!root) return;
+  if(!isOnline()){
+    root.innerHTML = `<div class='pages-empty'>Подключите Google Sheets в Настройках — туда складываются данные страниц.</div>`;
+    return;
+  }
+  const mode = state.pagesMode === "preview" ? "preview" : "edit";
+  const cards = PLATFORMS.map(plat => mode === "preview" ? renderPagePreview(plat) : renderPageCard(plat)).join("");
+  root.innerHTML = `
+    <div class="pages-toolbar" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <div style="color:var(--muted);font-size:13px;flex:1;min-width:220px">${mode === "preview" ? "Так это видит подписчик. Дмитрий копирует — и вставляет в нативное приложение." : "Аня держит здесь в актуальном состоянии профили площадок: аватар, шапку, био, ссылки."}</div>
+      <div class="pm-tabs" style="margin:0;border-bottom:none">
+        <button class="${mode==="edit"?"active":""}" data-pages-mode="edit">✎ Редактировать</button>
+        <button class="${mode==="preview"?"active":""}" data-pages-mode="preview">👁 Превью</button>
+      </div>
+    </div>
+    <div class="pages-grid">${cards}</div>
+  `;
+}
+
+function renderPagePreview(plat){
+  const p = profileFor(plat);
+  const hasCover = PROFILE_HAS_COVER[plat];
+  const cover = String(p.cover_url||"");
+  const avatar = String(p.avatar_url||"");
+  const coverPreview = cover ? (mediaPreviewUrl(cover) || cover) : "";
+  const avatarPreview = avatar ? (mediaPreviewUrl(avatar) || avatar) : "";
+  const hl = highlightsFor(plat);
+  const showHighlights = PROFILE_HAS_HIGHLIGHTS[plat] && hl.length > 0;
+  const headHtml = hasCover && coverPreview ? `
+    <div style="position:relative;width:100%;aspect-ratio:${plat==="YouTube"?"16/9":"2.7/1"};background:url('${escape(coverPreview)}') center/cover #000"></div>
+  ` : "";
+  return `<div class="page-card" data-page-preview-platform="${escape(plat)}" style="background:#fff;color:#111">
+    ${headHtml}
+    <div style="display:flex;gap:14px;padding:18px;align-items:flex-start">
+      <div style="flex:0 0 auto;width:84px;height:84px;border-radius:50%;overflow:hidden;background:#eee;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.15);display:flex;align-items:center;justify-content:center;font-size:32px;color:#aaa">
+        ${avatarPreview ? `<img src="${escape(avatarPreview)}" alt="" style="width:100%;height:100%;object-fit:cover">` : "👤"}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.6px;font-weight:600;margin-bottom:4px">${escape(plat)}</div>
+        <div style="font-size:18px;font-weight:700;color:#111">${escape(p.display_name||"(имя не задано)")}</div>
+        <div style="font-size:13px;color:#666;margin-bottom:8px">${escape(p.handle||"")}</div>
+        <div style="font-size:14px;color:#222;white-space:pre-wrap;line-height:1.45">${escape(p.bio||"(био не задано)")}</div>
+        ${p.link_in_bio?`<div style="margin-top:6px"><a href="${escape(p.link_in_bio)}" target="_blank" rel="noopener" style="color:#0066cc;font-size:13px;word-break:break-all">${escape(p.link_in_bio)}</a></div>`:""}
+        ${p.extra_links?`<div style="margin-top:4px;font-size:12px;color:#444;white-space:pre-wrap">${escape(p.extra_links)}</div>`:""}
+      </div>
+    </div>
+    ${showHighlights ? `
+      <div style="padding:0 18px 14px;display:flex;gap:10px;overflow-x:auto">
+        ${hl.map(h => {
+          const c = h.cover_url ? (mediaPreviewUrl(h.cover_url) || h.cover_url) : "";
+          return `<div style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:4px;width:72px">
+            <div style="width:64px;height:64px;border-radius:50%;background:${c?`url('${escape(c)}') center/cover`:"#eee"};border:2px solid #ddd"></div>
+            <div style="font-size:11px;color:#333;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:72px">${escape(h.title||"")}</div>
+          </div>`;
+        }).join("")}
+      </div>
+    ` : ""}
+    ${p.description?`<div style="padding:0 18px 14px;font-size:13px;color:#444;white-space:pre-wrap;line-height:1.5;border-top:1px solid #eee;padding-top:12px">${escape(p.description)}</div>`:""}
+    <div style="padding:12px 18px;border-top:1px solid #eee;display:flex;gap:8px;flex-wrap:wrap;background:#fafafa">
+      <button class="btn primary" data-profile-copy="${escape(plat)}">📋 Скопировать для приложения</button>
+      ${p.profile_url?`<a class="btn ghost" href="${escape(p.profile_url)}" target="_blank" rel="noopener" style="color:#444;border-color:#ddd;background:#fff">↗ Открыть профиль</a>`:""}
+    </div>
+  </div>`;
+}
+
+function unfinishedProfiles(){
+  return PLATFORMS.filter(plat => {
+    const p = state.profiles[plat] || {};
+    return !p.avatar_url && !p.display_name;
+  });
+}
+
+function renderPageCard(plat){
+  const p = profileFor(plat);
+  const sufx = PLATFORM_SHORT[plat] || plat;
+  const hasCover = PROFILE_HAS_COVER[plat];
+  const coverClass = PROFILE_COVER_CLASS[plat] || "";
+  const bioLimit = PROFILE_BIO_LIMITS[plat] || 0;
+  const bioVal = String(p.bio||"");
+  const bioLen = bioVal.length;
+  const bioOver = bioLimit > 0 && bioLen > bioLimit;
+  const cover = String(p.cover_url||"");
+  const avatar = String(p.avatar_url||"");
+  const coverPreviewUrl = cover ? (mediaPreviewUrl(cover) || cover) : "";
+  const avatarPreviewUrl = avatar ? (mediaPreviewUrl(avatar) || avatar) : "";
+  const coverStyle = coverPreviewUrl ? `style="background-image:url('${escape(coverPreviewUrl)}')"` : "";
+  const profileUrlBtn = p.profile_url ? `<a class="btn ghost" href="${escape(p.profile_url)}" target="_blank" rel="noopener">↗ Открыть профиль</a>` : "";
+  const headHtml = hasCover
+    ? `
+      <div class="page-head">
+        <div class="pc-cover-zone ${coverClass}" data-profile-platform="${escape(plat)}" data-profile-image-field="cover_url" ${coverStyle}>
+          ${!coverPreviewUrl ? `<div class="pc-cover-empty"><span>🖼</span>Перетащите обложку или кликните чтобы выбрать</div>` : ""}
+          <div class="pc-platform-pill">${escape(plat)}</div>
+          <div class="pc-cover-hint">⬇ Перетащить новую обложку</div>
+        </div>
+        <div class="pc-avatar-zone" data-profile-platform="${escape(plat)}" data-profile-image-field="avatar_url">
+          ${avatarPreviewUrl ? `<img src="${escape(avatarPreviewUrl)}" alt="">` : "👤"}
+        </div>
+      </div>
+    `
+    : `
+      <div class="page-head no-cover" style="display:flex;align-items:center;padding:14px;gap:14px">
+        <div class="pc-avatar-zone no-head" data-profile-platform="${escape(plat)}" data-profile-image-field="avatar_url">
+          ${avatarPreviewUrl ? `<img src="${escape(avatarPreviewUrl)}" alt="">` : "👤"}
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+          <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:600">${escape(plat)}</div>
+          <div style="font-size:13px;color:var(--cream)">${escape(p.display_name||"Имя профиля")}</div>
+        </div>
+      </div>
+    `;
+
+  const fieldsHtml = `
+    <div class="page-body">
+      <div class="page-row">
+        <label>Название</label>
+        <input type="text" data-profile-platform="${escape(plat)}" data-profile-field="display_name" value="${escape(p.display_name||"")}" placeholder="${escape(plat)} канал/страница">
+      </div>
+      <div class="page-row">
+        <label>@handle / username</label>
+        <input type="text" data-profile-platform="${escape(plat)}" data-profile-field="handle" value="${escape(p.handle||"")}" placeholder="@username">
+      </div>
+      <div class="page-row">
+        <label>URL профиля</label>
+        <input type="url" data-profile-platform="${escape(plat)}" data-profile-field="profile_url" value="${escape(p.profile_url||"")}" placeholder="https://...">
+      </div>
+      <div class="page-row">
+        <label>Био <span class="char-counter ${bioOver?"over":""}" data-bio-counter="${escape(plat)}">${bioLen}${bioLimit?` / ${bioLimit}`:""}</span></label>
+        <textarea data-profile-platform="${escape(plat)}" data-profile-field="bio" placeholder="${bioLimit?`до ${bioLimit} символов`:"короткое описание"}">${escape(bioVal)}</textarea>
+      </div>
+      <div class="page-row">
+        <label>Ссылка в bio</label>
+        <input type="url" data-profile-platform="${escape(plat)}" data-profile-field="link_in_bio" value="${escape(p.link_in_bio||"")}" placeholder="главная ссылка">
+      </div>
+      <div class="page-row">
+        <label>Описание <span class="small" style="text-transform:none;letter-spacing:0;font-weight:400">(About / описание канала)</span></label>
+        <textarea class="tall" data-profile-platform="${escape(plat)}" data-profile-field="description" placeholder="длинный текст: о шоу, о команде, расписание">${escape(p.description||"")}</textarea>
+      </div>
+      <div class="page-row">
+        <label>Доп. ссылки <span class="small" style="text-transform:none;letter-spacing:0;font-weight:400">(по одной на строку)</span></label>
+        <textarea data-profile-platform="${escape(plat)}" data-profile-field="extra_links" placeholder="https://...">${escape(p.extra_links||"")}</textarea>
+      </div>
+      <div class="page-actions">
+        <span class="small-meta">${p.updated_at ? "Обновлено: " + fmtDateTime(p.updated_at) : "Ещё не сохранялось"}</span>
+        <button class="btn ghost" data-profile-copy="${escape(plat)}" title="Скопировать всё для вставки в приложение">📋 Скопировать всё</button>
+        ${profileUrlBtn}
+      </div>
+    </div>
+  `;
+
+  const hl = highlightsFor(plat);
+  const hlHtml = PROFILE_HAS_HIGHLIGHTS[plat] ? `
+    <div class="highlights-section">
+      <h4>${escape(PROFILE_HIGHLIGHTS_LABEL[plat] || "Закреплённое")} <span class="small" style="color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400">${hl.length}</span></h4>
+      <div class="highlights-grid">
+        ${hl.map(h => renderHighlightTile(h)).join("")}
+        <button class="highlight-add" data-highlight-add="${escape(plat)}" title="Добавить актуальное">+</button>
+      </div>
+    </div>
+  ` : "";
+
+  return `<div class="page-card ${hasCover?"":"no-cover"}" data-page-platform="${escape(plat)}">
+    ${headHtml}
+    ${fieldsHtml}
+    ${hlHtml}
+  </div>`;
+}
+
+function renderHighlightTile(h){
+  const cover = String(h.cover_url||"");
+  const preview = cover ? (mediaPreviewUrl(cover) || cover) : "";
+  return `<div class="highlight-tile ${preview?"":"empty"}" data-highlight-edit="${escape(h.id)}" title="${escape(h.title||"")}">
+    ${preview ? `<img src="${escape(preview)}" alt="">` : ""}
+    <div class="ht-actions">
+      <button data-highlight-edit-btn="${escape(h.id)}" title="Изменить">✎</button>
+      <button data-highlight-del="${escape(h.id)}" title="Удалить">×</button>
+    </div>
+    <div class="ht-label">${escape(h.title||"(без названия)")}</div>
+  </div>`;
+}
+
+function openHighlightModal(platform, highlightId){
+  const isEdit = !!highlightId;
+  const h = isEdit ? (state.highlights||[]).find(x => x.id === highlightId) : null;
+  if(isEdit && !h){ alert("Highlight не найден"); return; }
+  const cur = h || {platform, title:"", cover_url:"", order_idx: ((state.highlights||[]).filter(x=>x.platform===platform).length+1)*10, content_note:"", link:""};
+  const previewUrl = cur.cover_url ? (mediaPreviewUrl(cur.cover_url) || cur.cover_url) : "";
+  const coverStyle = previewUrl ? `background-image:url('${escape(previewUrl)}');background-size:cover;background-position:center` : "";
+  $("#modalBody").innerHTML = `
+    <div style="max-width:480px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px">
+        <h2 style="margin:0;font-size:18px;color:var(--gold)">${isEdit?"✎ Изменить":"+ Добавить"} · ${escape(platform)}</h2>
+        <button class="btn ghost" data-close-pm title="Закрыть">✕</button>
+      </div>
+      <div class="page-row">
+        <label>Обложка <span class="small" style="text-transform:none;letter-spacing:0;font-weight:400">перетащите или вставьте ссылку</span></label>
+        <div id="hlCoverZone" data-hl-cover-zone style="${coverStyle};aspect-ratio:1;max-width:200px;border:2px dashed var(--line);border-radius:14px;background-color:var(--bg);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;margin-bottom:6px">${previewUrl?"":"🖼"}</div>
+        <input type="url" id="hlCoverUrl" value="${escape(cur.cover_url||"")}" placeholder="или Drive URL вручную" style="margin-top:4px">
+      </div>
+      <div class="page-row">
+        <label>Название</label>
+        <input type="text" id="hlTitle" value="${escape(cur.title||"")}" placeholder="например: «Серии», «Команда», «Расписание»">
+      </div>
+      <div class="page-row">
+        <label>Что внутри</label>
+        <textarea id="hlNote" placeholder="заметка: список сторис, тексты, ссылки">${escape(cur.content_note||"")}</textarea>
+      </div>
+      <div class="page-row">
+        <label>Прямая ссылка (опционально)</label>
+        <input type="url" id="hlLink" value="${escape(cur.link||"")}" placeholder="https://...">
+      </div>
+      <div class="page-row">
+        <label>Порядок</label>
+        <input type="number" id="hlOrder" value="${cur.order_idx||0}" style="max-width:120px">
+      </div>
+      <div style="display:flex;gap:10px;justify-content:space-between;margin-top:14px">
+        ${isEdit?`<button class="btn" style="background:#c84a3a;border-color:#c84a3a;color:#fff" data-hl-del-confirm="${escape(highlightId)}">Удалить</button>`:`<span></span>`}
+        <div style="display:flex;gap:10px">
+          <button class="btn" data-close-pm>Отмена</button>
+          <button class="btn primary" data-hl-save="${escape(highlightId||"")}" data-hl-platform="${escape(platform)}">${isEdit?"Сохранить":"Добавить"}</button>
+        </div>
+      </div>
+    </div>
+  `;
+  $("#modal").classList.add("show");
+}
+
+function buildProfileCopyText(plat){
+  const p = profileFor(plat);
+  const parts = [];
+  if(p.display_name) parts.push(p.display_name);
+  if(p.handle) parts.push(p.handle);
+  if(p.bio) parts.push("\n" + p.bio);
+  if(p.link_in_bio) parts.push("\n🔗 " + p.link_in_bio);
+  if(p.extra_links) parts.push(p.extra_links);
+  if(p.description) parts.push("\n" + p.description);
+  return parts.join("\n").trim();
 }
 
 /* SETTINGS */
@@ -1873,7 +2308,7 @@ function renderHelp(){
 function applyToolbarMode(tab){
   const tb = document.getElementById("toolbar");
   if(!tb) return;
-  tb.classList.toggle("toolbar-minimal", tab === "anya");
+  tb.classList.toggle("toolbar-minimal", tab === "anya" || tab === "pages");
   tb.classList.toggle("toolbar-all", tab === "all");
 }
 $$("nav.tabs button").forEach(b => b.addEventListener("click", e => {
@@ -2121,6 +2556,252 @@ document.addEventListener("input", e => {
       updateAnyaProgressLight();
     }
   }
+  // Профили (вкладка «Страницы»)
+  if(t.matches("[data-profile-platform][data-profile-field]")){
+    const plat = t.dataset.profilePlatform;
+    const field = t.dataset.profileField;
+    const value = t.value;
+    pushProfile(plat, {[field]: value});
+    if(field === "bio"){
+      const counter = document.querySelector(`[data-bio-counter="${plat}"]`);
+      if(counter){
+        const limit = PROFILE_BIO_LIMITS[plat] || 0;
+        const len = value.length;
+        counter.textContent = limit ? `${len} / ${limit}` : String(len);
+        counter.classList.toggle("over", limit > 0 && len > limit);
+      }
+    }
+  }
+});
+
+// Drag&drop для аватара/обложки на вкладке «Страницы»
+document.addEventListener("dragover", e => {
+  const zone = e.target.closest("[data-profile-image-field]"); if(!zone) return;
+  e.preventDefault(); zone.classList.add("drag-over");
+});
+document.addEventListener("dragleave", e => {
+  const zone = e.target.closest("[data-profile-image-field]"); if(!zone) return;
+  if(!zone.contains(e.relatedTarget)) zone.classList.remove("drag-over");
+});
+document.addEventListener("drop", async e => {
+  const zone = e.target.closest("[data-profile-image-field]"); if(!zone) return;
+  e.preventDefault(); zone.classList.remove("drag-over");
+  const files = Array.from(e.dataTransfer.files||[]); if(!files.length) return;
+  const plat = zone.dataset.profilePlatform;
+  const field = zone.dataset.profileImageField;
+  zone.classList.add("uploading");
+  try{
+    const rawUrl = await uploadFileToDrive(files[0]);
+    if(!rawUrl) return;
+    const url = withMeta(rawUrl, files[0].name, files[0].size);
+    pushProfile(plat, {[field]: url}, 0);
+    // обновить превью без полной перерисовки
+    const preview = mediaPreviewUrl(url) || url;
+    if(field === "avatar_url"){
+      zone.innerHTML = `<img src="${escape(preview)}" alt="">`;
+    } else {
+      zone.style.backgroundImage = `url('${escape(preview)}')`;
+      const empty = zone.querySelector(".pc-cover-empty");
+      if(empty) empty.remove();
+    }
+    flash("Загружено");
+  }catch(err){
+    alert("Не загрузилось: " + err.message);
+  }finally{
+    zone.classList.remove("uploading");
+  }
+});
+
+// Клик по dropzone аватара/обложки → файлпикер
+document.addEventListener("click", e => {
+  const zone = e.target.closest("[data-profile-image-field]");
+  if(!zone) return;
+  // Если клик внутри пилюли или ссылки — игнор
+  if(e.target.closest(".pc-platform-pill")) return;
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "image/*";
+  inp.addEventListener("change", async () => {
+    const file = inp.files && inp.files[0]; if(!file) return;
+    zone.classList.add("uploading");
+    try{
+      const rawUrl = await uploadFileToDrive(file);
+      if(!rawUrl) return;
+      const url = withMeta(rawUrl, file.name, file.size);
+      const plat = zone.dataset.profilePlatform;
+      const field = zone.dataset.profileImageField;
+      pushProfile(plat, {[field]: url}, 0);
+      const preview = mediaPreviewUrl(url) || url;
+      if(field === "avatar_url"){
+        zone.innerHTML = `<img src="${escape(preview)}" alt="">`;
+      } else {
+        zone.style.backgroundImage = `url('${escape(preview)}')`;
+        const empty = zone.querySelector(".pc-cover-empty");
+        if(empty) empty.remove();
+      }
+      flash("Загружено");
+    }catch(err){
+      alert("Не загрузилось: " + err.message);
+    }finally{
+      zone.classList.remove("uploading");
+    }
+  });
+  inp.click();
+});
+
+// Highlights: открыть модал на добавление/редактирование
+document.addEventListener("click", e => {
+  const addBtn = e.target.closest("[data-highlight-add]");
+  if(addBtn){ e.preventDefault(); openHighlightModal(addBtn.dataset.highlightAdd, null); return; }
+  const editBtn = e.target.closest("[data-highlight-edit-btn]");
+  if(editBtn){
+    e.preventDefault(); e.stopPropagation();
+    const h = (state.highlights||[]).find(x => x.id === editBtn.dataset.highlightEditBtn);
+    if(h) openHighlightModal(h.platform, h.id);
+    return;
+  }
+  const delBtn = e.target.closest("[data-highlight-del]");
+  if(delBtn){
+    e.preventDefault(); e.stopPropagation();
+    const id = delBtn.dataset.highlightDel;
+    if(!confirm("Удалить это актуальное?")) return;
+    deleteHighlightRemote(id).then(() => {
+      state.highlights = (state.highlights||[]).filter(x => x.id !== id);
+      saveState(); renderPages();
+      flash("Удалено");
+    }).catch(err => alert("Не удалось удалить: " + err.message));
+    return;
+  }
+  const tile = e.target.closest("[data-highlight-edit]");
+  if(tile){
+    const h = (state.highlights||[]).find(x => x.id === tile.dataset.highlightEdit);
+    if(h) openHighlightModal(h.platform, h.id);
+    return;
+  }
+  const save = e.target.closest("[data-hl-save]");
+  if(save){
+    e.preventDefault();
+    const id = save.dataset.hlSave || "";
+    const platform = save.dataset.hlPlatform;
+    const payload = {
+      id: id || undefined,
+      platform,
+      title: document.getElementById("hlTitle").value.trim(),
+      cover_url: document.getElementById("hlCoverUrl").value.trim(),
+      content_note: document.getElementById("hlNote").value.trim(),
+      link: document.getElementById("hlLink").value.trim(),
+      order_idx: Number(document.getElementById("hlOrder").value) || 0
+    };
+    save.disabled = true;
+    saveHighlightRemote(payload).then(saved => {
+      const newId = saved && saved.id;
+      const existingIdx = (state.highlights||[]).findIndex(x => x.id === newId);
+      const fresh = Object.assign({}, payload, saved||{}, {id:newId});
+      if(existingIdx >= 0) state.highlights[existingIdx] = fresh;
+      else state.highlights.push(fresh);
+      saveState(); renderPages();
+      $("#modal").classList.remove("show"); $("#modalBody").innerHTML = "";
+      flash("Сохранено");
+    }).catch(err => {
+      alert("Не удалось сохранить: " + err.message);
+    }).finally(() => { save.disabled = false; });
+    return;
+  }
+  const delConfirm = e.target.closest("[data-hl-del-confirm]");
+  if(delConfirm){
+    e.preventDefault();
+    const id = delConfirm.dataset.hlDelConfirm;
+    if(!confirm("Удалить это актуальное?")) return;
+    delConfirm.disabled = true;
+    deleteHighlightRemote(id).then(() => {
+      state.highlights = (state.highlights||[]).filter(x => x.id !== id);
+      saveState(); renderPages();
+      $("#modal").classList.remove("show"); $("#modalBody").innerHTML = "";
+      flash("Удалено");
+    }).catch(err => alert("Не удалось удалить: " + err.message))
+      .finally(() => { delConfirm.disabled = false; });
+    return;
+  }
+  const copyBtn = e.target.closest("[data-profile-copy]");
+  if(copyBtn){
+    e.preventDefault();
+    const txt = buildProfileCopyText(copyBtn.dataset.profileCopy);
+    if(!txt){ flash("Пусто — нечего копировать"); return; }
+    copy(txt);
+    return;
+  }
+  const modeBtn = e.target.closest("[data-pages-mode]");
+  if(modeBtn){
+    e.preventDefault();
+    state.pagesMode = modeBtn.dataset.pagesMode;
+    saveState(); renderPages();
+    return;
+  }
+  const goPages = e.target.closest("[data-go-pages]");
+  if(goPages){
+    e.preventDefault();
+    $$("nav.tabs button").forEach(x=>x.classList.remove("active"));
+    $$("section").forEach(s=>s.classList.remove("active"));
+    const btn = document.querySelector('nav.tabs button[data-tab="pages"]');
+    if(btn) btn.classList.add("active");
+    const sec = document.getElementById("sec-pages");
+    if(sec) sec.classList.add("active");
+    state.activeTab = "pages"; saveState();
+    applyToolbarMode("pages");
+    window.scrollTo({top:0, behavior:"smooth"});
+    return;
+  }
+});
+
+// Drag&drop обложки внутри модала highlights
+document.addEventListener("dragover", e => {
+  const z = e.target.closest("[data-hl-cover-zone]"); if(!z) return;
+  e.preventDefault(); z.style.borderColor = "var(--gold)";
+});
+document.addEventListener("dragleave", e => {
+  const z = e.target.closest("[data-hl-cover-zone]"); if(!z) return;
+  if(!z.contains(e.relatedTarget)) z.style.borderColor = "";
+});
+document.addEventListener("drop", async e => {
+  const z = e.target.closest("[data-hl-cover-zone]"); if(!z) return;
+  e.preventDefault(); z.style.borderColor = "";
+  const file = (e.dataTransfer.files||[])[0]; if(!file) return;
+  try{
+    const rawUrl = await uploadFileToDrive(file);
+    if(!rawUrl) return;
+    const url = withMeta(rawUrl, file.name, file.size);
+    const inp = document.getElementById("hlCoverUrl");
+    if(inp) inp.value = url;
+    const preview = mediaPreviewUrl(url) || url;
+    z.style.backgroundImage = `url('${preview}')`;
+    z.style.backgroundSize = "cover";
+    z.style.backgroundPosition = "center";
+    z.textContent = "";
+  }catch(err){
+    alert("Не загрузилось: " + err.message);
+  }
+});
+document.addEventListener("click", e => {
+  const z = e.target.closest("[data-hl-cover-zone]"); if(!z) return;
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "image/*";
+  inp.addEventListener("change", async () => {
+    const file = inp.files && inp.files[0]; if(!file) return;
+    try{
+      const rawUrl = await uploadFileToDrive(file);
+      if(!rawUrl) return;
+      const url = withMeta(rawUrl, file.name, file.size);
+      const hlUrl = document.getElementById("hlCoverUrl");
+      if(hlUrl) hlUrl.value = url;
+      const preview = mediaPreviewUrl(url) || url;
+      z.style.backgroundImage = `url('${preview}')`;
+      z.style.backgroundSize = "cover";
+      z.style.backgroundPosition = "center";
+      z.textContent = "";
+    }catch(err){
+      alert("Не загрузилось: " + err.message);
+    }
+  });
+  inp.click();
 });
 
 

@@ -19,6 +19,14 @@ const SHEET_NAME = 'инст';      // имя листа с публикация
 const HEADER_ROW = 5;           // строка с заголовками
 const FIRST_DATA_ROW = 6;       // строка, с которой начинаются посты
 
+// Листы для вкладки «Страницы»
+const PROFILES_SHEET = 'профили';
+const HIGHLIGHTS_SHEET = 'highlights';
+const PROFILES_HEADER_ROW = 1;
+const PROFILES_FIRST_DATA_ROW = 2;
+
+const PLATFORMS_ALL = ['Instagram','Facebook','Telegram','TikTok','YouTube','VK'];
+
 // PIN-код для доступа к пульту. Замените на свой и переразверните Web App.
 // Любой запрос без правильного PIN получит {ok:false, code:'PIN_REQUIRED'}.
 const APP_PIN = '1405';
@@ -94,7 +102,95 @@ function initSheet() {
    'text_tt','hashtags_tt','media_tt','cover_tt',
    'text_yt','hashtags_yt','media_yt','cover_yt',
    'text_vk','hashtags_vk','media_vk','cover_vk'].forEach(f => sheet.setColumnWidth(COLS[f].col, 180));
-  SpreadsheetApp.getUi().alert('Готово. Колонки на месте. Можно запускать seedPosts() или подключать пульт.');
+  // Листы профилей и highlights — идемпотентно
+  initProfilesSheet_();
+  initHighlightsSheet_();
+  SpreadsheetApp.getUi().alert('Готово. Колонки на месте. Листы «профили» и «highlights» созданы. Можно запускать seedPosts() или подключать пульт.');
+}
+
+// ===== Профили (вкладка «Страницы») =====
+
+const PROFILE_COLS = {
+  platform:     { col: 1,  header: 'Платформа' },
+  handle:       { col: 2,  header: '@handle' },
+  display_name: { col: 3,  header: 'Название' },
+  profile_url:  { col: 4,  header: 'URL профиля' },
+  avatar_url:   { col: 5,  header: 'Аватар' },
+  cover_url:    { col: 6,  header: 'Обложка' },
+  bio:          { col: 7,  header: 'Био' },
+  link_in_bio:  { col: 8,  header: 'Ссылка в bio' },
+  description:  { col: 9,  header: 'Описание' },
+  extra_links:  { col: 10, header: 'Доп. ссылки' },
+  updated_at:   { col: 11, header: 'Обновлено' },
+  notes:        { col: 12, header: 'Заметки' }
+};
+
+const HIGHLIGHT_COLS = {
+  id:           { col: 1, header: 'ID' },
+  platform:     { col: 2, header: 'Платформа' },
+  title:        { col: 3, header: 'Название' },
+  cover_url:    { col: 4, header: 'Обложка' },
+  order_idx:    { col: 5, header: 'Порядок' },
+  content_note: { col: 6, header: 'Что внутри' },
+  link:         { col: 7, header: 'Ссылка' },
+  updated_at:   { col: 8, header: 'Обновлено' }
+};
+
+function initProfilesSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(PROFILES_SHEET);
+  if (!sheet) sheet = ss.insertSheet(PROFILES_SHEET);
+  Object.values(PROFILE_COLS).forEach(c => {
+    const cell = sheet.getRange(PROFILES_HEADER_ROW, c.col);
+    if (!cell.getValue()) cell.setValue(c.header);
+  });
+  sheet.getRange(PROFILES_HEADER_ROW, 1, 1, Object.keys(PROFILE_COLS).length).setFontWeight('bold');
+  sheet.setFrozenRows(PROFILES_HEADER_ROW);
+  sheet.setColumnWidth(PROFILE_COLS.platform.col, 110);
+  sheet.setColumnWidth(PROFILE_COLS.handle.col, 160);
+  sheet.setColumnWidth(PROFILE_COLS.display_name.col, 180);
+  sheet.setColumnWidth(PROFILE_COLS.profile_url.col, 220);
+  sheet.setColumnWidth(PROFILE_COLS.avatar_url.col, 220);
+  sheet.setColumnWidth(PROFILE_COLS.cover_url.col, 220);
+  sheet.setColumnWidth(PROFILE_COLS.bio.col, 280);
+  sheet.setColumnWidth(PROFILE_COLS.link_in_bio.col, 220);
+  sheet.setColumnWidth(PROFILE_COLS.description.col, 320);
+  sheet.setColumnWidth(PROFILE_COLS.extra_links.col, 240);
+  sheet.setColumnWidth(PROFILE_COLS.updated_at.col, 140);
+  sheet.setColumnWidth(PROFILE_COLS.notes.col, 220);
+  // Пред-создаём строки для всех 6 платформ, если их ещё нет
+  const existing = readProfiles_();
+  const haveSet = {};
+  existing.forEach(p => { haveSet[p.platform] = true; });
+  const lastCol = Math.max.apply(null, Object.values(PROFILE_COLS).map(c => c.col));
+  let nextRow = Math.max(sheet.getLastRow() + 1, PROFILES_FIRST_DATA_ROW);
+  PLATFORMS_ALL.forEach(plat => {
+    if (haveSet[plat]) return;
+    const row = new Array(lastCol).fill('');
+    row[PROFILE_COLS.platform.col - 1] = plat;
+    sheet.getRange(nextRow, 1, 1, lastCol).setValues([row]);
+    nextRow++;
+  });
+}
+
+function initHighlightsSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(HIGHLIGHTS_SHEET);
+  if (!sheet) sheet = ss.insertSheet(HIGHLIGHTS_SHEET);
+  Object.values(HIGHLIGHT_COLS).forEach(c => {
+    const cell = sheet.getRange(PROFILES_HEADER_ROW, c.col);
+    if (!cell.getValue()) cell.setValue(c.header);
+  });
+  sheet.getRange(PROFILES_HEADER_ROW, 1, 1, Object.keys(HIGHLIGHT_COLS).length).setFontWeight('bold');
+  sheet.setFrozenRows(PROFILES_HEADER_ROW);
+  sheet.setColumnWidth(HIGHLIGHT_COLS.id.col, 220);
+  sheet.setColumnWidth(HIGHLIGHT_COLS.platform.col, 110);
+  sheet.setColumnWidth(HIGHLIGHT_COLS.title.col, 200);
+  sheet.setColumnWidth(HIGHLIGHT_COLS.cover_url.col, 220);
+  sheet.setColumnWidth(HIGHLIGHT_COLS.order_idx.col, 80);
+  sheet.setColumnWidth(HIGHLIGHT_COLS.content_note.col, 320);
+  sheet.setColumnWidth(HIGHLIGHT_COLS.link.col, 220);
+  sheet.setColumnWidth(HIGHLIGHT_COLS.updated_at.col, 140);
 }
 
 /** Запустите один раз — зальёт расписание 20 постов в таблицу. */
@@ -187,6 +283,26 @@ function handle_(payload) {
     if (payload.action === 'upload') {
       const r = uploadFile_(payload);
       return json_({ ok: true, url: r.url, fileId: r.fileId, name: r.name });
+    }
+    if (payload.action === 'readProfiles') {
+      return json_({
+        ok: true,
+        profiles: readProfiles_(),
+        highlights: readHighlights_(),
+        serverTime: new Date().toISOString()
+      });
+    }
+    if (payload.action === 'saveProfile') {
+      const r = saveProfile_(payload.profile || {});
+      return json_({ ok: true, profile: r });
+    }
+    if (payload.action === 'saveHighlight') {
+      const r = saveHighlight_(payload.highlight || {});
+      return json_({ ok: true, highlight: r });
+    }
+    if (payload.action === 'deleteHighlight') {
+      const r = deleteHighlight_(payload.id);
+      return json_({ ok: true, deleted: r });
     }
     return json_({ ok: false, error: 'unknown action: ' + payload.action });
   } catch (err) {
@@ -293,6 +409,130 @@ function getSheet_() {
   const sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) throw new Error('Лист "' + SHEET_NAME + '" не найден');
   return sheet;
+}
+
+function getProfilesSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(PROFILES_SHEET);
+  if (!sheet) { initProfilesSheet_(); sheet = ss.getSheetByName(PROFILES_SHEET); }
+  return sheet;
+}
+
+function getHighlightsSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(HIGHLIGHTS_SHEET);
+  if (!sheet) { initHighlightsSheet_(); sheet = ss.getSheetByName(HIGHLIGHTS_SHEET); }
+  return sheet;
+}
+
+function readProfiles_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(PROFILES_SHEET);
+  if (!sheet) return [];
+  const lastRow = sheet.getLastRow();
+  if (lastRow < PROFILES_FIRST_DATA_ROW) return [];
+  const lastCol = Math.max.apply(null, Object.values(PROFILE_COLS).map(c => c.col));
+  const values = sheet.getRange(PROFILES_FIRST_DATA_ROW, 1, lastRow - PROFILES_FIRST_DATA_ROW + 1, lastCol).getValues();
+  const out = [];
+  values.forEach((row, i) => {
+    const plat = String(row[PROFILE_COLS.platform.col - 1] || '');
+    if (!plat) return;
+    const p = { rowIndex: PROFILES_FIRST_DATA_ROW + i };
+    Object.keys(PROFILE_COLS).forEach(f => {
+      const raw = row[PROFILE_COLS[f].col - 1];
+      if (f === 'updated_at' && raw instanceof Date) p[f] = raw.toISOString();
+      else p[f] = String(raw || '');
+    });
+    out.push(p);
+  });
+  return out;
+}
+
+function saveProfile_(profile) {
+  if (!profile || !profile.platform) throw new Error('Не указана платформа');
+  const sheet = getProfilesSheet_();
+  const existing = readProfiles_();
+  const match = existing.filter(p => p.platform === profile.platform)[0];
+  const lastCol = Math.max.apply(null, Object.values(PROFILE_COLS).map(c => c.col));
+  const rowIndex = match ? match.rowIndex : Math.max(sheet.getLastRow() + 1, PROFILES_FIRST_DATA_ROW);
+  const nowIso = new Date().toISOString();
+  Object.keys(PROFILE_COLS).forEach(f => {
+    if (f === 'updated_at') {
+      sheet.getRange(rowIndex, PROFILE_COLS[f].col).setValue(nowIso);
+      return;
+    }
+    if (profile[f] !== undefined && profile[f] !== null) {
+      sheet.getRange(rowIndex, PROFILE_COLS[f].col).setValue(profile[f]);
+    } else if (!match) {
+      sheet.getRange(rowIndex, PROFILE_COLS[f].col).setValue('');
+    }
+  });
+  return { rowIndex: rowIndex, platform: profile.platform, updated_at: nowIso };
+}
+
+function readHighlights_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(HIGHLIGHTS_SHEET);
+  if (!sheet) return [];
+  const lastRow = sheet.getLastRow();
+  if (lastRow < PROFILES_FIRST_DATA_ROW) return [];
+  const lastCol = Math.max.apply(null, Object.values(HIGHLIGHT_COLS).map(c => c.col));
+  const values = sheet.getRange(PROFILES_FIRST_DATA_ROW, 1, lastRow - PROFILES_FIRST_DATA_ROW + 1, lastCol).getValues();
+  const out = [];
+  values.forEach((row, i) => {
+    const id = String(row[HIGHLIGHT_COLS.id.col - 1] || '');
+    if (!id) return;
+    const h = { rowIndex: PROFILES_FIRST_DATA_ROW + i };
+    Object.keys(HIGHLIGHT_COLS).forEach(f => {
+      const raw = row[HIGHLIGHT_COLS[f].col - 1];
+      if (f === 'updated_at' && raw instanceof Date) h[f] = raw.toISOString();
+      else if (f === 'order_idx') h[f] = Number(raw) || 0;
+      else h[f] = String(raw || '');
+    });
+    out.push(h);
+  });
+  out.sort((a, b) => (a.order_idx - b.order_idx) || a.id.localeCompare(b.id));
+  return out;
+}
+
+function saveHighlight_(highlight) {
+  if (!highlight || !highlight.platform) throw new Error('Не указана платформа');
+  const sheet = getHighlightsSheet_();
+  const existing = readHighlights_();
+  let id = String(highlight.id || '');
+  let rowIndex;
+  if (id) {
+    const match = existing.filter(h => h.id === id)[0];
+    rowIndex = match ? match.rowIndex : Math.max(sheet.getLastRow() + 1, PROFILES_FIRST_DATA_ROW);
+  } else {
+    id = Utilities.getUuid();
+    rowIndex = Math.max(sheet.getLastRow() + 1, PROFILES_FIRST_DATA_ROW);
+  }
+  const nowIso = new Date().toISOString();
+  const values = {
+    id: id,
+    platform: highlight.platform,
+    title: highlight.title !== undefined ? highlight.title : '',
+    cover_url: highlight.cover_url !== undefined ? highlight.cover_url : '',
+    order_idx: highlight.order_idx !== undefined ? Number(highlight.order_idx) || 0 : 0,
+    content_note: highlight.content_note !== undefined ? highlight.content_note : '',
+    link: highlight.link !== undefined ? highlight.link : '',
+    updated_at: nowIso
+  };
+  Object.keys(HIGHLIGHT_COLS).forEach(f => {
+    sheet.getRange(rowIndex, HIGHLIGHT_COLS[f].col).setValue(values[f]);
+  });
+  return { rowIndex: rowIndex, id: id, platform: highlight.platform, updated_at: nowIso };
+}
+
+function deleteHighlight_(id) {
+  if (!id) throw new Error('Нет id');
+  const sheet = getHighlightsSheet_();
+  const existing = readHighlights_();
+  const match = existing.filter(h => h.id === String(id))[0];
+  if (!match) return { id: id, missing: true };
+  sheet.deleteRow(match.rowIndex);
+  return { id: id };
 }
 
 function json_(obj) {
