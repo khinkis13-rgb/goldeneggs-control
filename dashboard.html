@@ -21,6 +21,8 @@
   button,select,input,textarea{font-family:inherit;font-size:14px}
   textarea,input[type=text],input[type=url]{width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--txt);padding:10px 12px;resize:vertical}
   textarea:focus,input:focus{outline:none;border-color:var(--gold-dim)}
+  input[readonly]{background:rgba(31,26,20,.6);color:var(--muted);cursor:default}
+  input[readonly]:focus{border-color:var(--line)}
   .btn{display:inline-flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--line);color:var(--txt);border-radius:10px;padding:7px 12px;cursor:pointer;transition:.15s}
   .btn:hover{border-color:var(--gold-dim);color:var(--gold)}
   .btn.primary{background:var(--gold);color:#1b160c;border-color:var(--gold);font-weight:600}
@@ -850,7 +852,16 @@ let state = loadState();
 function loadState(){
   try{
     const raw = localStorage.getItem(LS_KEY);
-    if(raw){ const s = JSON.parse(raw); s.settings = Object.assign({}, DEFAULT_SETTINGS, s.settings||{}); s.settings.links = Object.assign({}, DEFAULT_SETTINGS.links, s.settings.links||{}); return s; }
+    if(raw){
+      const s = JSON.parse(raw);
+      s.settings = Object.assign({}, DEFAULT_SETTINGS, s.settings||{});
+      s.settings.links = Object.assign({}, DEFAULT_SETTINGS.links, s.settings.links||{});
+      // backendUrl и mediaFolder теперь зашиты в коде — источник правды в DEFAULT_SETTINGS,
+      // а не в localStorage (иначе старые сейвы со плейсхолдерами ломают подключение).
+      s.settings.backendUrl = DEFAULT_SETTINGS.backendUrl;
+      s.settings.mediaFolder = DEFAULT_SETTINGS.mediaFolder;
+      return s;
+    }
   }catch(e){}
   const posts = {};
   SEED_POSTS.forEach(p => { posts[p.id] = Object.assign({}, DEFAULT_FIELDS, p, {checks:Object.assign({},DEFAULT_FIELDS.checks)}); });
@@ -1778,7 +1789,7 @@ function renderSettings(){
       <h3>Общие</h3>
       <div class="setrow"><label>Тэглайн</label><input type="text" data-setting="tagline" value="${escape(s.tagline||"")}"></div>
       <div class="setrow"><label>Дата премьеры</label><input type="text" data-setting="premiere" value="${escape(s.premiere||"")}" placeholder="YYYY-MM-DD"></div>
-      <div class="setrow"><label>Папка с медиа</label><input type="url" data-setting="mediaFolder" value="${escape(s.mediaFolder||"")}" placeholder="https://drive.google.com/drive/folders/..."></div>
+      <div class="setrow"><label>Папка с медиа</label><input type="url" value="${escape(s.mediaFolder||"")}" readonly title="Папка зашита в коде" placeholder="зашито в коде"></div>
       <div class="setrow"><label>Базовые хэштеги</label><textarea data-setting="baseHashtags" rows="3">${escape(s.baseHashtags||"")}</textarea></div>
     </div>
     <div style="height:14px"></div>
@@ -1790,14 +1801,10 @@ function renderSettings(){
     <div style="height:14px"></div>
     <div class="card">
       <h3>🔗 Подключение к Google-таблице</h3>
-      <div class="small" style="margin-bottom:10px">Когда сюда вставлен URL опубликованного Apps Script, дашборд работает как «окно» в вашу таблицу: всё, что меняет Аня, появляется у вас и наоборот. Если поле пустое — работает локально, как блокнот.</div>
+      <div class="small" style="margin-bottom:10px">Подключение зашито в коде. Менять не нужно — поле только для справки.</div>
       <div class="setrow">
         <label>URL Apps Script</label>
-        <input type="url" data-setting="backendUrl" value="${escape(s.backendUrl||"")}" placeholder="https://script.google.com/macros/s/.../exec">
-      </div>
-      <div class="row" style="gap:8px;margin-top:8px">
-        <button class="btn primary" id="btnConnect">Подключить и загрузить</button>
-        <span class="small">Инструкция — во вкладке «Как пользоваться» внизу.</span>
+        <input type="url" value="${escape(s.backendUrl||"")}" readonly title="URL зашит в коде">
       </div>
       <div class="setrow" style="margin-top:14px">
         <label>PIN-код</label>
@@ -2148,12 +2155,6 @@ $("#btnReload").addEventListener("click", async () => {
   else { render(); flash("Локальный режим — нечего тянуть"); }
 });
 document.addEventListener("click", async e => {
-  if(e.target && e.target.id === "btnConnect"){
-    const inp = document.querySelector('[data-setting="backendUrl"]');
-    if(inp){ state.settings.backendUrl = inp.value.trim(); saveState(); }
-    if(!state.settings.pin){ showPinModal(); return; }
-    await loadFromBackend();
-  }
   if(e.target && e.target.id === "btnResetPin"){
     state.settings.pin = "";
     saveState();
