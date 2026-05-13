@@ -214,11 +214,36 @@
   /* ANYA focus mode */
   .anya-progress{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:14px}
   .anya-progress .progress{margin-top:8px}
-  .anya-strip{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px;justify-content:center}
-  .anya-dot{width:18px;height:18px;border-radius:50%;border:1px solid var(--line);background:var(--bg2);cursor:pointer;padding:0;position:relative}
-  .anya-dot.filled{background:var(--gold-dim);border-color:var(--gold)}
-  .anya-dot.active{outline:2px solid var(--gold);outline-offset:2px}
-  .anya-dot:hover{border-color:var(--gold)}
+  .anya-layout{display:grid;grid-template-columns:300px 1fr;gap:18px;align-items:start}
+  @media (max-width:900px){.anya-layout{grid-template-columns:1fr}}
+  .anya-list{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px}
+  .anya-day{font-size:11px;color:var(--gold-dim);text-transform:uppercase;letter-spacing:.6px;padding:10px 10px 4px;font-weight:600}
+  .anya-day:first-child{padding-top:6px}
+  .anya-item{display:flex;gap:6px;align-items:center;padding:4px 8px 4px 10px;border-radius:8px;border-left:3px solid transparent;color:var(--cream);transition:.12s}
+  .anya-item + .anya-item{margin-top:2px}
+  .anya-item:hover{background:var(--bg2)}
+  .anya-item.active{background:rgba(230,184,100,.1);border-left-color:var(--gold)}
+  .anya-jump-area{display:flex;gap:10px;align-items:center;flex:1;background:transparent;border:none;padding:6px 0;cursor:pointer;font-family:inherit;text-align:left;color:inherit;min-width:0}
+  .anya-item .ai-time{font-size:13px;color:var(--cream);font-weight:600;width:46px;flex:0 0 auto;font-variant-numeric:tabular-nums}
+  .anya-item .ai-title{flex:1;font-size:13px;color:var(--cream);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3}
+  .anya-item .ai-status{font-size:14px;color:var(--muted);flex:0 0 auto;width:16px;text-align:center}
+  .anya-item.filled .ai-status{color:var(--gold)}
+  .anya-item.published{opacity:.55}
+  .anya-item.published .ai-title{text-decoration:line-through}
+  .anya-item{position:relative}
+  .ai-del{display:none;width:22px;height:22px;border-radius:50%;background:transparent;border:none;color:var(--muted);cursor:pointer;align-items:center;justify-content:center;font-size:14px;padding:0;flex:0 0 auto}
+  .ai-del:hover{background:rgba(224,122,95,.18);color:#ff8a72}
+  .anya-item:hover .ai-status,.anya-item:focus-within .ai-status{display:none}
+  .anya-item:hover .ai-del,.anya-item:focus-within .ai-del{display:flex}
+  .anya-add{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-bottom:12px;padding:11px;border:1px solid var(--gold-dim);border-radius:10px;background:rgba(230,184,100,.06);color:var(--gold);cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;transition:.15s}
+  .anya-add:hover{background:rgba(230,184,100,.14);border-color:var(--gold)}
+  .af-meta-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
+  .af-dt-cell{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:4px 10px}
+  .af-dt-cell .dt-icon{font-size:14px;color:var(--gold-dim)}
+  .af-dt-cell input{background:transparent;border:none;color:var(--cream);font-family:inherit;font-size:14px;padding:4px 0;color-scheme:dark;width:auto}
+  .af-dt-cell input:focus{outline:none}
+  .af-dt-cell input[type="date"]{min-width:130px}
+  .af-dt-cell input[type="time"]{min-width:70px}
   .anya-focus{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow);max-width:780px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
   .af-title{font-size:20px;font-weight:600;background:transparent;border:1px solid transparent;color:var(--gold);padding:6px 8px;border-radius:8px;width:100%}
   .af-title:hover{border-color:var(--line)}
@@ -885,6 +910,39 @@ function closePublishModal(){
   $("#modalBody").innerHTML = "";
 }
 
+function openDeleteAnyaModal(p){
+  const filled = isAnyaFilled(p);
+  const what = [];
+  if(p.text) what.push("текст");
+  if(p.cover) what.push("обложку");
+  if(p.media) what.push("картинки");
+  if(p.hashtags) what.push("хэштеги");
+  const lostLine = what.length
+    ? `Будут удалены: <strong>${what.join(", ")}</strong>.`
+    : `Пост ещё не заполнен — терять нечего.`;
+  $("#modalBody").innerHTML = `
+    <div style="max-width:480px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px">
+        <h2 style="margin:0;font-size:20px;color:#ff8a72">🗑 Удалить пост?</h2>
+        <button class="btn ghost" data-close-pm title="Закрыть">✕</button>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px">
+        <div style="font-weight:600;color:var(--gold);font-size:16px;margin-bottom:6px">${escape(p.title||'(без названия)')}</div>
+        <div class="small">📅 ${fmtDateTime(p.datetime)}${p.mode?` · ${escape(p.mode)}`:""}</div>
+      </div>
+      <div class="small" style="line-height:1.55;margin-bottom:18px">
+        ${lostLine}<br>
+        <span style="color:#ff8a72">Действие нельзя отменить — пост уйдёт из таблицы навсегда.</span>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn" data-close-pm>Отмена</button>
+        <button class="btn" style="background:#c84a3a;border-color:#c84a3a;color:#fff" data-anya-del-confirm="${p.id}">Да, удалить пост</button>
+      </div>
+    </div>
+  `;
+  $("#modal").classList.add("show");
+}
+
 /* TODAY */
 function renderToday(){
   const today = todayISO();
@@ -1064,11 +1122,33 @@ function renderAnya(){
   const p = current;
   const allDone = filled === posts.length;
 
-  const strip = `<div class="anya-strip" id="anyaStrip">${posts.map(x => {
-    const cls = isAnyaFilled(x) ? "filled" : "empty";
-    const active = x.id===currentId ? "active" : "";
-    return `<button class="anya-dot ${cls} ${active}" data-anya-jump="${x.id}" title="${escape(x.title||'')} — ${isAnyaFilled(x)?'заполнен':'пусто'}"></button>`;
-  }).join("")}</div>`;
+  const grouped = [];
+  let lastDay = "";
+  posts.forEach(x => {
+    const d = x.datetime ? new Date(x.datetime) : null;
+    const dayKey = d ? `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` : "—";
+    if(dayKey !== lastDay){
+      const dayLabel = d ? `${d.getDate()} ${RU_MON[d.getMonth()]}, ${RU_DOW[d.getDay()]}` : "Без даты";
+      grouped.push({type:"day", label: dayLabel});
+      lastDay = dayKey;
+    }
+    grouped.push({type:"post", post: x, d});
+  });
+  const listHtml = grouped.map(g => {
+    if(g.type === "day") return `<div class="anya-day">${escape(g.label)}</div>`;
+    const x = g.post;
+    const hhmm = g.d ? `${pad(g.d.getHours())}:${pad(g.d.getMinutes())}` : "—";
+    const filled = isAnyaFilled(x);
+    const cls = [
+      "anya-item",
+      x.id===currentId ? "active" : "",
+      filled ? "filled" : "",
+      x.status==="published" ? "published" : ""
+    ].filter(Boolean).join(" ");
+    const status = x.status==="published" ? "🚀" : (filled ? "✓" : "○");
+    return `<div class="${cls}"><button class="anya-jump-area" data-anya-jump="${x.id}" title="${escape(x.title||'(без названия)')}"><span class="ai-time">${hhmm}</span><span class="ai-title">${escape(x.title||'(без названия)')}</span></button><span class="ai-status">${status}</span><button class="ai-del" data-anya-del="${x.id}" title="Удалить пост">✕</button></div>`;
+  }).join("");
+  const listBlock = `<div class="anya-side"><button class="anya-add" data-anya-add>＋ Добавить пост</button><div class="anya-list" id="anyaList">${listHtml}</div></div>`;
 
   const platforms = postPlatforms(p);
   const platformsBlock = `
@@ -1105,9 +1185,10 @@ function renderAnya(){
     <div class="anya-focus" data-id="${p.id}">
       <div>
         <input type="text" class="af-title" data-field="title" data-id="${p.id}" value="${escape(p.title||"")}" placeholder="Название поста">
-        <div class="small" style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <div class="af-meta-row">
           ${p.mode?`<span class="pill">${escape(p.mode)}</span>`:""}
-          <span>${fmtDateTime(p.datetime)}</span>
+          <span class="af-dt-cell" title="Дата публикации"><span class="dt-icon">📅</span><input type="date" data-field="datetime-date" data-id="${p.id}" value="${(p.datetime||"").substring(0,10)}"></span>
+          <span class="af-dt-cell" title="Время публикации"><span class="dt-icon">⏰</span><input type="time" data-field="datetime-time" data-id="${p.id}" value="${(p.datetime||"").substring(11,16)}"></span>
           <span class="pill ${STATUS_CLASS[p.status]||""}">${STATUS_LABEL[p.status]||p.status}</span>
         </div>
       </div>
@@ -1157,8 +1238,10 @@ function renderAnya(){
       </div>
       <div class="progress"><div style="width:${pct}%"></div></div>
     </div>
-    ${strip}
-    ${card}
+    <div class="anya-layout">
+      ${listBlock}
+      <div class="anya-main">${card}</div>
+    </div>
   `;
 }
 
@@ -1180,15 +1263,24 @@ function updateAnyaProgressLight(){
     const bar = prog.querySelector(".progress > div");
     if(bar) bar.style.width = pct+"%";
   }
-  const strip = document.getElementById("anyaStrip");
-  if(strip){
+  const list = document.getElementById("anyaList");
+  if(list){
     posts.forEach(x => {
-      const dot = strip.querySelector(`[data-anya-jump="${x.id}"]`);
-      if(dot){
-        dot.classList.toggle("filled", isAnyaFilled(x));
-        dot.classList.toggle("empty", !isAnyaFilled(x));
-        dot.title = (x.title||"")+" — "+(isAnyaFilled(x)?"заполнен":"пусто");
-      }
+      const jumpBtn = list.querySelector(`.anya-jump-area[data-anya-jump="${x.id}"]`);
+      const item = jumpBtn && jumpBtn.closest(".anya-item");
+      if(!item) return;
+      const d = x.datetime ? new Date(x.datetime) : null;
+      const hhmm = d ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : "—";
+      const filled = isAnyaFilled(x);
+      const timeEl = item.querySelector(".ai-time");
+      const titleEl = item.querySelector(".ai-title");
+      const statusEl = item.querySelector(".ai-status");
+      if(timeEl) timeEl.textContent = hhmm;
+      if(titleEl) titleEl.textContent = x.title || "(без названия)";
+      if(statusEl) statusEl.textContent = x.status==="published" ? "🚀" : (filled ? "✓" : "○");
+      item.classList.toggle("filled", filled);
+      item.classList.toggle("published", x.status==="published");
+      item.title = x.title || "(без названия)";
     });
   }
 }
@@ -1333,8 +1425,57 @@ $$("nav.tabs button").forEach(b => b.addEventListener("click", e => {
 });
 
 document.addEventListener("click", e => {
-  const t = e.target.closest("button, a, [data-jump], [data-close-pm], [data-mark-published], [data-mark-unpublish], [data-anya-jump], [data-anya-open], [data-anya-prev], [data-anya-next], [data-anya-ready]");
+  const t = e.target.closest("button, a, [data-jump], [data-close-pm], [data-mark-published], [data-mark-unpublish], [data-anya-jump], [data-anya-open], [data-anya-prev], [data-anya-next], [data-anya-ready], [data-anya-del], [data-anya-del-confirm], [data-anya-add]");
   if(!t) return;
+  if(t.matches("[data-anya-del]")){
+    e.preventDefault(); e.stopPropagation();
+    const id = t.dataset.anyaDel;
+    const p = state.posts[id]; if(!p) return;
+    openDeleteAnyaModal(p);
+    return;
+  }
+  if(t.matches("[data-anya-del-confirm]")){
+    e.preventDefault();
+    const id = t.dataset.anyaDelConfirm;
+    const p = state.posts[id]; if(!p) return;
+    const ri = rowIndexOf(p);
+    if(state.anyaCurrentId === id){
+      const list = anyaPosts();
+      const idx = list.findIndex(x=>x.id===id);
+      const next = list[idx+1] || list[idx-1] || null;
+      state.anyaCurrentId = next ? next.id : null;
+    }
+    delete state.posts[id]; saveState();
+    if(ri) pushDelete(ri);
+    closePublishModal();
+    renderAnya(); renderToday(); renderAll(); renderCal();
+    flash("Пост удалён");
+    return;
+  }
+  if(t.matches("[data-anya-add]")){
+    e.preventDefault();
+    const cur = state.anyaCurrentId ? state.posts[state.anyaCurrentId] : null;
+    const baseDate = cur && cur.datetime ? new Date(cur.datetime) : new Date();
+    baseDate.setDate(baseDate.getDate()+1);
+    baseDate.setHours(12,0,0,0);
+    const iso = `${baseDate.getFullYear()}-${pad(baseDate.getMonth()+1)}-${pad(baseDate.getDate())}T${pad(baseDate.getHours())}:${pad(baseDate.getMinutes())}:00`;
+    const draft = { platform:"Instagram", platforms:"Instagram", mode:"В ленту", title:"Новый пост",
+                    datetime: iso, text:"", media:"", cover:"", hashtags:"", owner:"Аня", status:"draft", checks:{}};
+    (async () => {
+      let id;
+      if(isOnline()){
+        const ri = await pushCreate(draft); if(!ri) return;
+        id = "row-"+ri;
+        state.posts[id] = Object.assign({}, DEFAULT_FIELDS, draft, {id, rowIndex:ri, checks:Object.assign({},DEFAULT_FIELDS.checks)});
+      } else {
+        id = "x-"+Date.now();
+        state.posts[id] = Object.assign({}, DEFAULT_FIELDS, draft, {id, checks:Object.assign({},DEFAULT_FIELDS.checks)});
+      }
+      state.anyaCurrentId = id; saveState();
+      renderAnya(); renderToday(); renderAll(); renderCal();
+    })();
+    return;
+  }
   if(t.matches("[data-anya-open]")){
     state.anyaCurrentId = t.dataset.anyaOpen; state.activeTab = "anya"; saveState();
     $$("nav.tabs button").forEach(x=>x.classList.remove("active"));
@@ -1477,19 +1618,32 @@ function fieldKind(field){
 document.addEventListener("input", e => {
   const t = e.target;
   if(t.matches("[data-field]")){
-    const p = state.posts[t.dataset.id];
-    p[t.dataset.field] = t.value; saveState();
+    const p = state.posts[t.dataset.id]; if(!p) return;
+    const field = t.dataset.field;
+    if(field === "datetime-date" || field === "datetime-time"){
+      const cur = p.datetime || "";
+      const datePart = (field === "datetime-date" ? t.value : cur.substring(0,10)) || "1970-01-01";
+      const timePart = (field === "datetime-time" ? t.value : cur.substring(11,16)) || "12:00";
+      p.datetime = `${datePart}T${timePart}`;
+      saveState();
+      const ri = rowIndexOf(p);
+      if(ri) pushField(ri, "datetime", p.datetime, 800);
+      updateAnyaProgressLight();
+      return;
+    }
+    p[field] = t.value; saveState();
     const ri = rowIndexOf(p);
-    if(ri) pushField(ri, t.dataset.field, t.value, 800);
-    const fk = fieldKind(t.dataset.field);
+    if(ri) pushField(ri, field, t.value, 800);
+    const fk = fieldKind(field);
     if(fk){
       refreshPreview(p.id, fk.kind, t.value, fk.sufx);
     }
-    if(["text","media","cover"].includes(t.dataset.field)){
+    if(["text","media","cover","title"].includes(field)){
       updateAnyaProgressLight();
     }
   }
 });
+
 
 $("#btnAdd").addEventListener("click", async () => {
   const dt = new Date(); dt.setHours(12,0,0,0);
