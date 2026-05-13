@@ -29,6 +29,13 @@
   .btn.primary:hover{background:#f0c878;color:#1b160c}
   .btn.ghost{background:transparent}
   .btn.danger:hover{border-color:var(--danger);color:var(--danger)}
+  .btn.save-btn{font-weight:600}
+  .btn.save-btn:disabled{opacity:.55;cursor:default;color:var(--muted);border-color:var(--line);background:transparent}
+  .btn.save-btn:disabled:hover{color:var(--muted);border-color:var(--line)}
+  .btn.save-btn.dirty{background:var(--gold);color:#1b160c;border-color:var(--gold);box-shadow:0 0 0 2px rgba(230,184,100,.22)}
+  .btn.save-btn.dirty:hover{background:#f0c878}
+  .af-save-row{display:flex;justify-content:center;margin-top:6px}
+  .af-save-row .btn.save-btn{min-width:200px;justify-content:center;padding:10px 18px;font-size:14px}
   .pill{display:inline-block;padding:2px 9px;border-radius:999px;background:var(--bg2);border:1px solid var(--line);font-size:12px;color:var(--muted)}
   .pill.gold{background:rgba(230,184,100,.12);border-color:var(--gold-dim);color:var(--gold)}
   .pill.ok{background:rgba(123,191,106,.12);border-color:#3e6532;color:var(--ok)}
@@ -1169,6 +1176,119 @@ function rowIndexOf(p){
   return null;
 }
 
+/* ===== Несохранённые изменения (ручное сохранение по кнопке) =====
+   Автосейв убран, потому что при быстром редактировании дебаунс перебивался
+   и часть текста терялась. Изменения копятся в dirty-сетах, отправляются
+   единым нажатием «Сохранить» в карточке поста / на вкладке «Страницы». */
+const dirtyPostFields = new Map();    // postId -> Set<field>
+const dirtyProfileFields = new Map(); // platform -> Set<field>
+
+function hasUnsavedChanges(){
+  for(const s of dirtyPostFields.values()) if(s.size) return true;
+  for(const s of dirtyProfileFields.values()) if(s.size) return true;
+  return false;
+}
+function markPostDirty(id, field){
+  if(!id) return;
+  let s = dirtyPostFields.get(id);
+  if(!s){ s = new Set(); dirtyPostFields.set(id, s); }
+  s.add(field);
+  updatePostSaveBtn(id);
+}
+function markProfileDirty(plat, field){
+  if(!plat) return;
+  let s = dirtyProfileFields.get(plat);
+  if(!s){ s = new Set(); dirtyProfileFields.set(plat, s); }
+  s.add(field);
+  updateProfileSaveBtn(plat);
+}
+function saveBtnHtmlPost(id){
+  const s = dirtyPostFields.get(id);
+  const n = s ? s.size : 0;
+  const dirty = n > 0;
+  const label = dirty ? `💾 Сохранить${n>1?` (${n})`:""}` : "✓ Сохранено";
+  return `<button class="btn save-btn${dirty?" dirty":""}" data-save-post="${id}" ${dirty?"":"disabled"}>${label}</button>`;
+}
+function saveBtnHtmlProfile(plat){
+  const s = dirtyProfileFields.get(plat);
+  const n = s ? s.size : 0;
+  const dirty = n > 0;
+  const label = dirty ? `💾 Сохранить${n>1?` (${n})`:""}` : "✓ Сохранено";
+  return `<button class="btn save-btn${dirty?" dirty":""}" data-save-profile="${escape(plat)}" ${dirty?"":"disabled"}>${label}</button>`;
+}
+function updatePostSaveBtn(id){
+  const s = dirtyPostFields.get(id);
+  const n = s ? s.size : 0;
+  const dirty = n > 0;
+  const label = dirty ? `💾 Сохранить${n>1?` (${n})`:""}` : "✓ Сохранено";
+  document.querySelectorAll(`[data-save-post="${id}"]`).forEach(btn => {
+    btn.classList.toggle("dirty", dirty);
+    btn.disabled = !dirty;
+    btn.textContent = label;
+  });
+}
+function updateProfileSaveBtn(plat){
+  const s = dirtyProfileFields.get(plat);
+  const n = s ? s.size : 0;
+  const dirty = n > 0;
+  const label = dirty ? `💾 Сохранить${n>1?` (${n})`:""}` : "✓ Сохранено";
+  document.querySelectorAll(`[data-save-profile="${plat}"]`).forEach(btn => {
+    btn.classList.toggle("dirty", dirty);
+    btn.disabled = !dirty;
+    btn.textContent = label;
+  });
+}
+async function savePost(id){
+  const p = state.posts[id]; if(!p) return;
+  const fields = dirtyPostFields.get(id);
+  if(!fields || !fields.size) return;
+  if(!isOnline()){ flash("⚠ Нет подключения к Sheets"); return; }
+  const ri = rowIndexOf(p);
+  if(!ri){ flash("⚠ Пост ещё не создан в таблице"); return; }
+  const btns = Array.from(document.querySelectorAll(`[data-save-post="${id}"]`));
+  btns.forEach(b => { b.disabled = true; b.textContent = "⏳ Сохранение…"; });
+  setConn("⏳ Сохранение…","warn");
+  const toSave = Array.from(fields);
+  try{
+    for(const f of toSave){
+      await api({action:"update", rowIndex: ri, field: f, value: p[f]});
+      fields.delete(f);
+    }
+    if(!fields.size) dirtyPostFields.delete(id);
+    setConn("✓ Сохранено","ok");
+    flash("Сохранено");
+  } catch(err){
+    setConn("⚠ "+err.message,"red");
+    flash("⚠ Не сохранилось: "+err.message);
+  } finally {
+    updatePostSaveBtn(id);
+  }
+}
+async function saveProfileNow(plat){
+  const fields = dirtyProfileFields.get(plat);
+  if(!fields || !fields.size) return;
+  if(!isOnline()){ flash("⚠ Нет подключения к Sheets"); return; }
+  if(!state.profiles[plat]) state.profiles[plat] = {platform: plat};
+  const btns = Array.from(document.querySelectorAll(`[data-save-profile="${plat}"]`));
+  btns.forEach(b => { b.disabled = true; b.textContent = "⏳ Сохранение…"; });
+  setConn("⏳ Сохранение…","warn");
+  try{
+    const res = await api({action:"saveProfile", profile: state.profiles[plat]});
+    if(res && res.profile && res.profile.updated_at){
+      state.profiles[plat].updated_at = res.profile.updated_at;
+      saveState();
+    }
+    dirtyProfileFields.delete(plat);
+    setConn("✓ Сохранено","ok");
+    flash("Сохранено");
+  } catch(err){
+    setConn("⚠ "+err.message,"red");
+    flash("⚠ Не сохранилось: "+err.message);
+  } finally {
+    updateProfileSaveBtn(plat);
+  }
+}
+
 /* ===== HELPERS ===== */
 const $ = sel => document.querySelector(sel);
 const $$ = sel => Array.from(document.querySelectorAll(sel));
@@ -1306,6 +1426,7 @@ function postCard(p){
     </details>
 
     <div class="actions">
+      ${saveBtnHtmlPost(p.id)}
       <button class="btn primary publish-btn" data-id="${p.id}">🚀 Публикую</button>
       <button class="btn copy-text" data-id="${p.id}">📋 Скопировать</button>
       <button class="btn copy-tags" data-id="${p.id}">#️⃣ Хэштеги</button>
@@ -1863,6 +1984,8 @@ function renderAnya(){
 
       ${isAnyaFilled(p) && p.status==="draft" ? `<div style="text-align:center"><button class="btn primary" data-anya-ready="${p.id}">✓ Готов — передать Дмитрию на ревью</button></div>` : ""}
 
+      <div class="af-save-row">${saveBtnHtmlPost(p.id)}</div>
+
       <div class="af-nav">
         <button class="btn" data-anya-prev ${idx<=0?"disabled":""}>← Предыдущий</button>
         <div class="af-counter">Пост ${idx+1} из ${posts.length}</div>
@@ -2134,6 +2257,7 @@ function renderPageCard(plat){
       </div>
       <div class="page-actions">
         <span class="small-meta">${p.updated_at ? "Обновлено: " + fmtDateTime(p.updated_at) : "Ещё не сохранялось"}</span>
+        ${saveBtnHtmlProfile(plat)}
         <button class="btn ghost" data-profile-copy="${escape(plat)}" title="Скопировать всё для вставки в приложение">📋 Скопировать всё</button>
         ${profileUrlBtn}
       </div>
@@ -2417,28 +2541,37 @@ document.addEventListener("click", e => {
     return;
   }
   if(t.matches("[data-anya-jump]")){
+    const prev = state.anyaCurrentId;
     state.anyaCurrentId = t.dataset.anyaJump;
-    // На мобильном список сворачивается после выбора, чтобы карточка раскрылась
     if(window.matchMedia("(max-width:720px)").matches){ state.anyaListOpen = false; }
     saveState(); renderAnya();
+    if(prev && prev !== state.anyaCurrentId) savePost(prev);
     return;
   } else if(t.matches("[data-anya-prev]")){
     const posts = anyaPosts();
     const idx = posts.findIndex(x=>x.id===state.anyaCurrentId);
-    if(idx>0){ state.anyaCurrentId = posts[idx-1].id; saveState(); renderAnya(); }
+    if(idx>0){
+      const prev = state.anyaCurrentId;
+      state.anyaCurrentId = posts[idx-1].id; saveState(); renderAnya();
+      if(prev) savePost(prev);
+    }
     return;
   } else if(t.matches("[data-anya-next]")){
     const posts = anyaPosts();
     const idx = posts.findIndex(x=>x.id===state.anyaCurrentId);
     const nextUn = nextUnfilledId(state.anyaCurrentId);
+    const prev = state.anyaCurrentId;
     if(nextUn){ state.anyaCurrentId = nextUn; }
     else if(idx>=0 && idx<posts.length-1){ state.anyaCurrentId = posts[idx+1].id; }
     else if(posts.length){ state.anyaCurrentId = posts[0].id; }
     saveState(); renderAnya();
+    if(prev && prev !== state.anyaCurrentId) savePost(prev);
     return;
   } else if(t.matches("[data-anya-ready]")){
     const id = t.dataset.anyaReady;
     const p = state.posts[id]; if(!p) return;
+    // Сохраним несохранённый текст перед отправкой на ревью, чтобы Дмитрий увидел свежее
+    savePost(id);
     p.status = "review"; saveState(); render();
     const ri = rowIndexOf(p); if(ri) pushField(ri, "status", "review", 0);
     flash("Отправлено Дмитрию на ревью");
@@ -2547,6 +2680,24 @@ function fieldKind(field){
   if(field === "media" || field.startsWith("media_")) return {kind:"media", sufx: field.length>5 ? field.slice(5) : ""};
   return null;
 }
+
+// Клик по кнопке «Сохранить» — пост / профиль
+document.addEventListener("click", e => {
+  const sp = e.target.closest("[data-save-post]");
+  if(sp){ e.preventDefault(); savePost(sp.dataset.savePost); return; }
+  const spr = e.target.closest("[data-save-profile]");
+  if(spr){ e.preventDefault(); saveProfileNow(spr.dataset.saveProfile); return; }
+});
+
+// Предупреждение при закрытии вкладки с несохранёнными изменениями
+window.addEventListener("beforeunload", e => {
+  if(hasUnsavedChanges()){
+    e.preventDefault();
+    e.returnValue = "Есть несохранённые изменения. Уйти со страницы?";
+    return e.returnValue;
+  }
+});
+
 document.addEventListener("input", e => {
   const t = e.target;
   if(t.matches("[data-field]")){
@@ -2564,8 +2715,7 @@ document.addEventListener("input", e => {
       return;
     }
     p[field] = t.value; saveState();
-    const ri = rowIndexOf(p);
-    if(ri) pushField(ri, field, t.value, 800);
+    markPostDirty(p.id, field);
     const fk = fieldKind(field);
     if(fk){
       refreshPreview(p.id, fk.kind, t.value, fk.sufx);
@@ -2583,7 +2733,10 @@ document.addEventListener("input", e => {
     const plat = t.dataset.profilePlatform;
     const field = t.dataset.profileField;
     const value = t.value;
-    pushProfile(plat, {[field]: value});
+    if(!state.profiles[plat]) state.profiles[plat] = {platform: plat};
+    state.profiles[plat][field] = value;
+    saveState();
+    markProfileDirty(plat, field);
     if(field === "bio"){
       const counter = document.querySelector(`[data-bio-counter="${plat}"]`);
       if(counter){
