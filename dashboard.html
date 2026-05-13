@@ -656,9 +656,31 @@
     nav.tabs button::before{font-size:16px;margin-bottom:0}
     .wrap{padding-bottom:calc(58px + env(safe-area-inset-bottom))}
   }
+  /* PIN overlay */
+  .pin-overlay{position:fixed;inset:0;background:rgba(15,13,10,.92);backdrop-filter:blur(6px);z-index:9999;display:none;align-items:center;justify-content:center;padding:20px}
+  .pin-overlay.show{display:flex}
+  .pin-box{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .pin-box h2{margin:0 0 6px;color:var(--gold);font-size:20px}
+  .pin-box .pin-sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+  .pin-box input[type=password]{width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--txt);padding:12px 14px;font-size:18px;letter-spacing:4px;text-align:center;box-sizing:border-box}
+  .pin-box input[type=password]:focus{outline:none;border-color:var(--gold-dim)}
+  .pin-box .pin-err{color:var(--danger);font-size:13px;min-height:18px;margin:8px 0 0;text-align:center}
+  .pin-box .pin-actions{margin-top:14px;display:flex;justify-content:flex-end}
+  .pin-box .pin-actions .btn.primary{padding:9px 18px}
 </style>
 </head>
 <body>
+<div id="pinOverlay" class="pin-overlay" role="dialog" aria-modal="true" aria-labelledby="pinTitle">
+  <div class="pin-box">
+    <h2 id="pinTitle">🔒 Введите PIN</h2>
+    <div class="pin-sub">Доступ к пульту «Золотые яйца» защищён PIN-кодом.</div>
+    <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" maxlength="32" placeholder="••••">
+    <div id="pinErr" class="pin-err"></div>
+    <div class="pin-actions">
+      <button id="pinSubmit" class="btn primary" type="button">Войти</button>
+    </div>
+  </div>
+</div>
 <div class="wrap">
 
   <header class="top">
@@ -784,7 +806,11 @@ function contentForPlatform(p, plat){
   return {text:t||"", hashtags:h||"", cover:c||"", media:m||""};
 }
 const DEFAULT_SETTINGS = {
-  backendUrl:"",
+  // Захардкожено: открыл пульт на любом устройстве — уже подключено.
+  // Без правильного PIN бэкенд не отдаст данные.
+  backendUrl:"<PASTE_BACKEND_URL>",
+  mediaFolder:"<PASTE_DRIVE_FOLDER_URL>",
+  pin:"",
   links:{
     Instagram:"https://www.instagram.com/goldeneggs_story/",
     Facebook:"https://www.facebook.com/profile.php?id=61589148974034",
@@ -793,7 +819,6 @@ const DEFAULT_SETTINGS = {
     YouTube:"",
     VK:""
   },
-  mediaFolder:"",
   baseHashtags:"#ЗолотыеЯйца #goldeneggs_story #премьера #сериал #фарфор #бизнес #любовь",
   tagline:"фарфор, бизнес, любовь",
   premiere:"2026-05-14"
@@ -843,16 +868,82 @@ function setConn(label, cls){
 }
 async function api(payload){
   if(!isOnline()) throw new Error("Не задан URL бэкенда");
+  const body = Object.assign({}, payload, { pin: state.settings.pin || "" });
   const res = await fetch(state.settings.backendUrl, {
     method:"POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(body),
     redirect:"follow"
   });
   let json;
   try { json = await res.json(); } catch(e){ throw new Error("Бэкенд вернул не JSON. Возможно, URL неверный или скрипт не развёрнут как Web app для всех."); }
-  if(!json.ok){ throw new Error(json.error || "Ошибка бэкенда"); }
+  if(!json.ok){
+    if(json.code === "PIN_REQUIRED"){
+      state.settings.pin = "";
+      saveState();
+      showPinModal();
+      throw new Error("Введите PIN");
+    }
+    throw new Error(json.error || "Ошибка бэкенда");
+  }
   return json;
 }
+
+/* ===== PIN MODAL ===== */
+function showPinModal(){
+  const overlay = document.getElementById("pinOverlay");
+  if(!overlay) return;
+  overlay.classList.add("show");
+  const inp = document.getElementById("pinInput");
+  const err = document.getElementById("pinErr");
+  if(err) err.textContent = "";
+  if(inp){ inp.value = ""; setTimeout(()=>inp.focus(), 50); }
+}
+function hidePinModal(){
+  const overlay = document.getElementById("pinOverlay");
+  if(overlay) overlay.classList.remove("show");
+}
+async function submitPin(){
+  const inp = document.getElementById("pinInput");
+  const err = document.getElementById("pinErr");
+  const btn = document.getElementById("pinSubmit");
+  const val = (inp && inp.value || "").trim();
+  if(!val){ if(err) err.textContent = "Введите PIN"; return; }
+  if(!isOnline()){ if(err) err.textContent = "Не задан URL бэкенда"; return; }
+  if(btn) btn.disabled = true;
+  if(err) err.textContent = "Проверяем…";
+  const prevPin = state.settings.pin;
+  state.settings.pin = val;
+  try{
+    const res = await fetch(state.settings.backendUrl, {
+      method:"POST",
+      body: JSON.stringify({action:"ping", pin: val}),
+      redirect:"follow"
+    });
+    let json;
+    try { json = await res.json(); } catch(_){ throw new Error("Бэкенд вернул не JSON"); }
+    if(json && json.ok){
+      saveState();
+      if(err) err.textContent = "";
+      hidePinModal();
+      loadFromBackend({silent:false});
+    } else {
+      state.settings.pin = prevPin;
+      if(err) err.textContent = "Неверный PIN";
+    }
+  }catch(e){
+    state.settings.pin = prevPin;
+    if(err) err.textContent = "Ошибка: " + e.message;
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById("pinSubmit");
+  const inp = document.getElementById("pinInput");
+  if(btn) btn.addEventListener("click", submitPin);
+  if(inp) inp.addEventListener("keydown", e => { if(e.key === "Enter"){ e.preventDefault(); submitPin(); } });
+});
+
 async function loadFromBackend({silent=false}={}){
   if(!isOnline()){ setConn("🔌 Не подключено",""); return false; }
   setConn("⏳ Загрузка…","warn");
@@ -1708,6 +1799,13 @@ function renderSettings(){
         <button class="btn primary" id="btnConnect">Подключить и загрузить</button>
         <span class="small">Инструкция — во вкладке «Как пользоваться» внизу.</span>
       </div>
+      <div class="setrow" style="margin-top:14px">
+        <label>PIN-код</label>
+        <div class="row" style="gap:8px;align-items:center">
+          <span class="small">${s.pin ? "✓ Введён — сохранён в этом браузере" : "Не задан"}</span>
+          <button class="btn" id="btnResetPin" type="button">Сменить PIN</button>
+        </div>
+      </div>
     </div>
     <div style="height:14px"></div>
     <div class="card">
@@ -2053,7 +2151,13 @@ document.addEventListener("click", async e => {
   if(e.target && e.target.id === "btnConnect"){
     const inp = document.querySelector('[data-setting="backendUrl"]');
     if(inp){ state.settings.backendUrl = inp.value.trim(); saveState(); }
+    if(!state.settings.pin){ showPinModal(); return; }
     await loadFromBackend();
+  }
+  if(e.target && e.target.id === "btnResetPin"){
+    state.settings.pin = "";
+    saveState();
+    showPinModal();
   }
 });
 
@@ -2493,8 +2597,13 @@ try{
   }
   applyToolbarMode(state.activeTab);
   if(isOnline()){
-    loadFromBackend({silent:true});
-    setInterval(()=>{ if(isOnline() && !document.hidden) loadFromBackend({silent:true}); }, 45000);
+    if(state.settings.pin){
+      loadFromBackend({silent:true});
+    } else {
+      setConn("🔒 Введите PIN","warn");
+      showPinModal();
+    }
+    setInterval(()=>{ if(isOnline() && state.settings.pin && !document.hidden) loadFromBackend({silent:true}); }, 45000);
   } else {
     setConn("🔌 Не подключено","");
   }

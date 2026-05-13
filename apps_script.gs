@@ -19,6 +19,10 @@ const SHEET_NAME = 'инст';      // имя листа с публикация
 const HEADER_ROW = 5;           // строка с заголовками
 const FIRST_DATA_ROW = 6;       // строка, с которой начинаются посты
 
+// PIN-код для доступа к пульту. Замените на свой и переразверните Web App.
+// Любой запрос без правильного PIN получит {ok:false, code:'PIN_REQUIRED'}.
+const APP_PIN = '<PASTE_PIN>';
+
 // Карта колонок (1-based). При initSheet() недостающие создаются автоматически.
 // Base-поля = Instagram (главная платформа). Для FB/TG/TT/YT/VK — override-блоки.
 const COLS = {
@@ -145,9 +149,9 @@ function seedPosts() {
   ui.alert('Готово! Залито ' + rows.length + ' постов. Откройте пульт и нажмите «Подключить и загрузить».');
 }
 
-/** GET — отдать все посты JSON-ом. */
+/** GET — закрыт, чтобы не было бэкдора в обход PIN. */
 function doGet(e) {
-  return handle_({ action: 'read' });
+  return json_({ ok: false, error: 'GET disabled. Use POST with PIN.' });
 }
 
 /** POST — принять команду на чтение/запись. Тело — JSON. */
@@ -159,6 +163,12 @@ function doPost(e) {
 
 function handle_(payload) {
   try {
+    if (!payload.pin || payload.pin !== APP_PIN) {
+      return json_({ ok: false, error: 'Bad PIN', code: 'PIN_REQUIRED' });
+    }
+    if (payload.action === 'ping') {
+      return json_({ ok: true });
+    }
     if (payload.action === 'read' || !payload.action) {
       return json_({ ok: true, posts: readAll_(), serverTime: new Date().toISOString() });
     }
