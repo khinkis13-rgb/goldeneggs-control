@@ -67,8 +67,8 @@
   .toolbar.toolbar-minimal > #btnMediaFolder{display:none !important}
   .toolbar:not(.toolbar-all) > #btnAdd{display:none}
   .toolbar.toolbar-all #btnAdd{display:inline-flex}
-  #btnReload{font-size:18px;line-height:1;padding:7px 12px;min-width:38px}
-  #btnReload .ico{display:inline-block;transform-origin:50% 50%}
+  #btnReload{font-size:18px;line-height:1;padding:7px 12px;min-width:38px;display:inline-flex;align-items:center;justify-content:center}
+  #btnReload .ico{display:block;width:18px;height:18px;transform-origin:50% 50%}
   #btnReload.spin .ico{animation:spin 1s linear infinite}
   @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
   .toolbar select{background:var(--bg2);border:1px solid var(--line);border-radius:10px;color:var(--txt);padding:7px 10px}
@@ -783,7 +783,7 @@
     <select id="filterMode"><option value="">Все типы</option></select>
     <div class="spacer"></div>
     <span id="connStatus" class="pill" title="Google-таблица не подключена — данные хранятся только в этом браузере. Зайдите в «Настройки», чтобы подключить Sheets.">🔌 Не подключено</span>
-    <button class="btn ghost" id="btnReload" title="Обновить данные из Google-таблицы"><span class="ico">⟳</span></button>
+    <button class="btn ghost" id="btnReload" title="Обновить данные из Google-таблицы"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg></button>
     <a id="btnMediaFolder" class="btn" target="_blank" rel="noopener" style="display:none" title="Открыть папку Google Drive с медиа">📁 Медиа в Drive</a>
     <button class="btn" id="btnAdd" title="Создать пост вне расписания — например, срочный анонс">+ Новый пост</button>
   </div>
