@@ -3,7 +3,10 @@
 <head>
 <meta charset="utf-8">
 <title>Золотые яйца — пульт публикаций</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f0d0a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
   :root{
     --bg:#0f0d0a; --bg2:#171410; --panel:#1f1a14; --line:#2a2319;
@@ -29,6 +32,14 @@
   .pill.ok{background:rgba(123,191,106,.12);border-color:#3e6532;color:var(--ok)}
   .pill.warn{background:rgba(230,197,98,.12);border-color:#7a6420;color:var(--warn)}
   .pill.red{background:rgba(224,122,95,.14);border-color:#7a3a2a;color:var(--danger)}
+  .status-sel{background:var(--bg2);border:1px solid var(--line);border-radius:999px;color:var(--cream);padding:5px 30px 5px 14px;font-family:inherit;font-size:12px;font-weight:600;color-scheme:dark;-webkit-appearance:none;appearance:none;cursor:pointer;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10' fill='none'><path d='M2 4l3 3 3-3' stroke='%23b9ad8f' stroke-width='1.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");background-repeat:no-repeat;background-position:right 10px center;transition:.12s;line-height:1.3}
+  .status-sel:hover{border-color:var(--gold-dim)}
+  .status-sel:focus{outline:none;border-color:var(--gold-dim)}
+  .status-sel[data-status="draft"]{color:var(--muted);border-color:var(--line)}
+  .status-sel[data-status="review"]{color:var(--warn);background-color:rgba(230,197,98,.10);border-color:#7a6420}
+  .status-sel[data-status="ready"]{color:var(--ok);background-color:rgba(123,191,106,.10);border-color:#3e6532}
+  .status-sel[data-status="published"]{color:var(--gold);background-color:rgba(230,184,100,.12);border-color:var(--gold-dim)}
+  .status-sel option{background:var(--panel);color:var(--cream)}
 
   /* layout */
   .wrap{max-width:1280px;margin:0 auto;padding:24px 22px 80px}
@@ -217,6 +228,15 @@
   .anya-layout{display:grid;grid-template-columns:300px 1fr;gap:18px;align-items:start}
   @media (max-width:900px){.anya-layout{grid-template-columns:1fr}}
   .anya-list{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px}
+  /* Десктоп: списочный блок (details) выглядит как обычный sidebar без summary */
+  details.anya-side{background:transparent;border:none;padding:0;border-radius:0}
+  details.anya-side > summary{display:none}
+  /* На десктопе показываем все дочерние элементы, даже если details не open
+     (так первичный рендер без атрибута open остаётся видимым) */
+  @media (min-width:721px){
+    details.anya-side > .anya-add{display:flex !important}
+    details.anya-side > .anya-list{display:block !important}
+  }
   .anya-day{font-size:11px;color:var(--gold-dim);text-transform:uppercase;letter-spacing:.6px;padding:10px 10px 4px;font-weight:600}
   .anya-day:first-child{padding-top:6px}
   .anya-item{display:flex;gap:6px;align-items:center;padding:4px 8px 4px 10px;border-radius:8px;border-left:3px solid transparent;color:var(--cream);transition:.12s}
@@ -237,6 +257,18 @@
   .anya-item:hover .ai-del,.anya-item:focus-within .ai-del{display:flex}
   .anya-add{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-bottom:12px;padding:11px;border:1px solid var(--gold-dim);border-radius:10px;background:rgba(230,184,100,.06);color:var(--gold);cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;transition:.15s}
   .anya-add:hover{background:rgba(230,184,100,.14);border-color:var(--gold)}
+  .anya-trash{margin-top:12px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px}
+  .anya-trash > summary{font-size:12px;color:var(--muted);padding:8px 10px;cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;text-transform:uppercase;letter-spacing:.6px;font-weight:600}
+  .anya-trash > summary::-webkit-details-marker{display:none}
+  .anya-trash > summary::before{content:"▸";display:inline-block;transition:.15s;color:var(--muted)}
+  .anya-trash[open] > summary::before{transform:rotate(90deg)}
+  .anya-trash .anya-item{opacity:.55}
+  .anya-trash .anya-item .ai-title{text-decoration:line-through}
+  .ai-restore{display:none;width:22px;height:22px;border-radius:50%;background:transparent;border:none;color:var(--muted);cursor:pointer;align-items:center;justify-content:center;font-size:14px;padding:0;flex:0 0 auto}
+  .ai-restore:hover{background:rgba(123,191,106,.18);color:var(--ok)}
+  .anya-trash .anya-item:hover{opacity:1}
+  .anya-trash .anya-item:hover .ai-status,.anya-trash .anya-item:hover .ai-del{display:none}
+  .anya-trash .anya-item:hover .ai-restore{display:flex}
   .af-meta-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px}
   .af-dt-cell{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:4px 10px}
   .af-dt-cell .dt-icon{font-size:14px;color:var(--gold-dim)}
@@ -284,6 +316,344 @@
   @media (max-width:720px){
     .cal{grid-template-columns:repeat(2,1fr)}
     .setrow{grid-template-columns:1fr}
+  }
+
+  /* ========================================================
+     MOBILE — нативная мобильная версия (≤ 720px)
+     ======================================================== */
+  @media (max-width:720px){
+    /* — БАЗА — */
+    html,body{font-size:15px;-webkit-text-size-adjust:100%}
+    body{padding:env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left)}
+    *{-webkit-tap-highlight-color:transparent}
+    /* iOS не должен зумить при фокусе на инпуте: нужен ≥16px */
+    textarea,input[type=text],input[type=url],input[type=date],input[type=time],select,.toolbar select{font-size:16px}
+    /* основной wrap: убираем боковой паддинг, освобождаем место под нижний таб-бар */
+    .wrap{padding:14px 14px calc(82px + env(safe-area-inset-bottom)) 14px}
+
+    /* — ХЕДЕР — */
+    header.top{margin-bottom:12px;gap:10px;align-items:center}
+    .brand{gap:10px;flex:1;min-width:0}
+    .brand .egg{font-size:28px}
+    .brand h1{font-size:17px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .brand .sub{display:none}
+    .stats{gap:6px;width:100%;display:grid;grid-template-columns:repeat(4,1fr)}
+    .stat{min-width:0;padding:8px 6px;border-radius:10px;text-align:center}
+    .stat .n{font-size:18px}
+    .stat .l{font-size:9px;letter-spacing:.4px;line-height:1.2}
+
+    /* — НИЖНИЙ ТАБ-БАР — */
+    nav.tabs{
+      position:fixed;
+      left:0; right:0; bottom:0;
+      z-index:40;
+      background:rgba(15,13,10,.96);
+      backdrop-filter:saturate(140%) blur(12px);
+      -webkit-backdrop-filter:saturate(140%) blur(12px);
+      border-top:1px solid var(--line);
+      border-bottom:none;
+      margin:0;
+      padding:6px 4px calc(6px + env(safe-area-inset-bottom)) 4px;
+      gap:0;
+      overflow:visible;
+      display:flex;
+      justify-content:space-around;
+      box-shadow:0 -2px 12px rgba(0,0,0,.5);
+    }
+    nav.tabs button{
+      flex:1 1 0;
+      min-width:0;
+      padding:6px 2px 4px;
+      font-size:10px;
+      letter-spacing:.1px;
+      border-bottom:none;
+      border-top:2px solid transparent;
+      color:var(--muted);
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:2px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      line-height:1.1;
+      transition:color .15s,border-color .15s,background .15s;
+    }
+    nav.tabs button.active{
+      color:var(--gold);
+      border-top-color:var(--gold);
+      border-bottom-color:transparent;
+      background:rgba(230,184,100,.07);
+    }
+    /* Эмодзи-иконки сверху, текст под ними */
+    nav.tabs button::before{
+      display:block;
+      font-size:20px;
+      line-height:1;
+      margin-bottom:2px;
+    }
+    nav.tabs button[data-tab="today"]::before{content:"📌"}
+    nav.tabs button[data-tab="cal"]::before{content:"📅"}
+    nav.tabs button[data-tab="all"]::before{content:"📋"}
+    nav.tabs button[data-tab="anya"]::before{content:"✍️"}
+    nav.tabs button[data-tab="settings"]::before{content:"⚙️"}
+    nav.tabs button[data-tab="help"]::before{content:"❓"}
+
+    /* — TOOLBAR — */
+    .toolbar{
+      gap:6px;
+      margin-bottom:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .toolbar select{
+      padding:8px 10px;
+      flex:1 1 30%;
+      min-width:0;
+      max-width:none;
+    }
+    .toolbar .spacer{flex:1 1 100%; height:0; margin:0}
+    .toolbar #connStatus{
+      font-size:11px;
+      padding:4px 10px;
+      max-width:55%;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .toolbar #btnReload{padding:6px 10px;min-width:42px;min-height:38px}
+    .toolbar #btnMediaFolder{padding:6px 10px;font-size:12px}
+    .toolbar #btnAdd{padding:6px 12px;font-size:13px}
+
+    /* — КАРТОЧКИ ПОСТОВ — */
+    .today-grid,.post-grid{grid-template-columns:1fr;gap:12px}
+    .card{padding:14px;gap:10px;border-radius:14px}
+    .card h3{font-size:17px;line-height:1.3}
+    .card .hdr{flex-direction:column;align-items:stretch;gap:8px}
+    .card .hdr > div:last-child{align-self:stretch}
+    .card .status-sel{width:100%;padding:9px 10px;font-size:14px}
+    .card .meta{font-size:12px;gap:6px}
+    .card textarea{font-size:15px;min-height:90px}
+
+    /* Превью медиа: 3 в ряд */
+    .media-preview{grid-template-columns:repeat(3,1fr);gap:6px}
+    .pm-media-grid{grid-template-columns:repeat(3,1fr);gap:6px}
+
+    /* Actions — кнопки крупные */
+    .actions{gap:8px}
+    .actions .btn{padding:11px 14px;font-size:14px;min-height:44px}
+    .actions .publish-btn{flex:1 1 100%;justify-content:center;font-size:15px}
+    .actions .copy-text{flex:1 1 calc(60% - 4px);justify-content:center}
+    .actions .copy-tags{flex:1 1 calc(40% - 4px);justify-content:center}
+    .actions .del-post{flex:0 0 auto}
+
+    #sec-today h2{font-size:16px}
+
+    /* — КАЛЕНДАРЬ: список по дням — */
+    .cal{grid-template-columns:1fr; gap:8px}
+    /* Скрываем заголовки дней недели (пн/вт/ср) — на мобильном вместо сетки список */
+    .cal:first-of-type{display:none}
+    .cal .day{min-height:0;padding:12px 14px;border-radius:12px}
+    .cal .day .dlabel{
+      font-size:13px;
+      margin-bottom:8px;
+      padding-bottom:6px;
+      border-bottom:1px solid var(--line);
+    }
+    .cal .day .dlabel .dnum{font-size:18px;color:var(--gold)}
+    .cal .day .ev{padding:8px 10px;font-size:13px;margin-bottom:6px}
+    .cal .day .ev:last-child{margin-bottom:0}
+    .cal .day .ev .t{font-size:13px;margin-right:8px}
+    /* Дни без событий — скрываем (поддержка :has) */
+    .cal .day:not(:has(.ev)){display:none}
+
+    /* — ВКЛАДКА «АНЯ»: сворачиваемый список — */
+    .anya-progress{padding:10px 12px;margin-bottom:10px}
+    .anya-progress .row > div:first-child strong{font-size:14px}
+    .anya-layout{grid-template-columns:1fr;gap:10px}
+    .anya-side{order:1}
+    .anya-main{order:2}
+
+    /* На мобильном details.anya-side — кликабельный сворачиваемый блок */
+    details.anya-side{
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:0;
+      overflow:hidden;
+    }
+    details.anya-side > summary{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:12px 14px;
+      cursor:pointer;
+      list-style:none;
+      font-size:14px;
+      color:var(--cream);
+      font-weight:600;
+      gap:10px;
+      min-height:48px;
+    }
+    details.anya-side > summary::-webkit-details-marker{display:none}
+    details.anya-side > summary::after{
+      content:"▾";
+      color:var(--gold);
+      transition:transform .2s;
+      font-size:14px;
+    }
+    details.anya-side[open] > summary::after{transform:rotate(180deg)}
+    details.anya-side > summary:hover{color:var(--gold)}
+    details.anya-side > .anya-list{
+      max-height:55vh;
+      overflow-y:auto;
+      margin:0;
+      border-radius:0;
+      border:none;
+      border-top:1px solid var(--line);
+      padding:6px;
+    }
+    details.anya-side > .anya-add{
+      margin:0;
+      border-radius:0;
+      border:none;
+      border-top:1px solid var(--line);
+      padding:14px;
+      min-height:50px;
+    }
+    /* Делаем item-target крупнее для пальца */
+    details.anya-side .anya-item{padding:6px 8px}
+    details.anya-side .anya-item .ai-time{font-size:14px;width:50px}
+    details.anya-side .anya-item .ai-title{font-size:14px}
+    details.anya-side .anya-jump-area{padding:8px 0;min-height:36px}
+
+    .anya-focus{padding:16px;gap:14px;max-width:100%;border-radius:14px}
+    .af-title{font-size:18px;padding:8px 10px}
+    .af-block textarea{font-size:15px;min-height:120px}
+    .af-block textarea[data-field="text"]{min-height:200px}
+    .af-meta-row{gap:6px}
+    .af-meta-row .af-dt-cell{padding:6px 10px}
+    .af-dt-cell input[type="date"]{min-width:115px;font-size:14px}
+    .af-dt-cell input[type="time"]{min-width:60px;font-size:14px}
+    .af-nav{gap:8px;padding-top:12px;flex-wrap:wrap}
+    .af-nav .btn{padding:11px 14px;min-height:44px;font-size:14px;flex:1 1 0;min-width:0}
+    .af-counter{flex:1 1 100%;order:3;font-size:13px;margin-top:6px}
+    .platform-chip{padding:8px 12px;font-size:13px}
+
+    /* — PUBLISH MODAL — full-screen sheet — */
+    .modal-bg{padding:0;align-items:stretch;justify-content:stretch}
+    .modal{
+      max-width:100%;
+      max-height:100%;
+      height:100vh;
+      height:100dvh;
+      width:100%;
+      border-radius:0;
+      border:none;
+      padding:14px 14px calc(80px + env(safe-area-inset-bottom)) 14px;
+      box-shadow:none;
+      display:flex;
+      flex-direction:column;
+      overflow-y:auto;
+    }
+    .pm-head{
+      position:sticky;
+      top:0;
+      background:var(--panel);
+      z-index:5;
+      margin:-14px -14px 12px;
+      padding:calc(14px + env(safe-area-inset-top)) 14px 12px;
+      border-bottom:1px solid var(--line);
+    }
+    .pm-title{font-size:18px}
+    .pm-tabs{margin-bottom:10px}
+    .pm-tabs button{padding:9px 12px;font-size:13px;min-height:40px}
+    .pm-grid{grid-template-columns:1fr;gap:14px;margin-bottom:14px}
+    .pm-text-area{min-height:220px;font-size:15px}
+    .pm-cover img{max-height:240px}
+    .btn.big{padding:13px 16px;font-size:15px;min-height:48px}
+    .pm-footer{
+      position:sticky;
+      bottom:0;
+      left:0; right:0;
+      background:linear-gradient(to top, var(--panel) 78%, rgba(31,26,20,.92) 100%);
+      margin:auto -14px 0;
+      padding:12px 14px calc(12px + env(safe-area-inset-bottom)) 14px;
+      border-top:1px solid var(--line);
+      gap:8px;
+      flex-wrap:wrap;
+      z-index:5;
+    }
+    .pm-footer .btn{flex:1 1 auto}
+    .pm-footer .spacer{flex:1 1 100%;height:0}
+    .pm-footer [data-mark-published],
+    .pm-footer [data-mark-unpublish]{flex:1 1 100%}
+    .pm-head .btn.ghost{padding:8px 14px;font-size:18px;min-width:44px;min-height:44px}
+
+    /* Delete-confirm modal — на всю ширину */
+    .modal > div[style*="max-width:480px"]{max-width:100%!important}
+
+    /* — SETTINGS / HELP — */
+    .setrow{grid-template-columns:1fr;gap:6px}
+    .setrow label{font-size:12px;color:var(--muted)}
+    #sec-settings .card,#sec-help .card{padding:14px;border-radius:12px}
+    #sec-settings .card h3,#sec-help .card h3{font-size:16px;margin-top:0}
+    #sec-help ol,#sec-help ul{padding-left:20px}
+    #sec-help li{margin-bottom:6px;font-size:14px}
+
+    /* — LIGHTBOX — */
+    .lightbox{padding:0}
+    .lb-close{
+      top:calc(14px + env(safe-area-inset-top));
+      right:14px;
+      width:46px;
+      height:46px;
+      font-size:22px;
+    }
+    .lb-counter{
+      top:calc(18px + env(safe-area-inset-top));
+      left:14px;
+    }
+    .lb-nav{width:54px;height:54px;font-size:28px}
+    .lb-prev{left:8px}
+    .lb-next{right:8px}
+    .lb-info{
+      bottom:calc(18px + env(safe-area-inset-bottom));
+      padding:8px 14px;
+      font-size:12px;
+      flex-wrap:wrap;
+      gap:8px;
+      max-width:calc(100% - 24px);
+    }
+    .lb-info .lb-name{max-width:60vw}
+
+    /* — UPLOADER — */
+    .uploader{padding:18px 14px;min-height:108px}
+    .uploader-title{font-size:14px}
+    .uploader-sub{font-size:13px}
+
+    /* — FILE CARD (обложка) — */
+    .file-card .fc-thumb-wrap{width:72px;height:72px}
+    .file-card .fc-name{font-size:14px}
+  }
+
+  /* — Очень узкие экраны (≤ 380px) — */
+  @media (max-width:380px){
+    .stats{grid-template-columns:repeat(2,1fr)}
+    .stat .l{font-size:10px}
+    nav.tabs button{font-size:9px}
+    nav.tabs button::before{font-size:18px}
+    .brand h1{font-size:15px}
+    .brand .egg{font-size:24px}
+    .toolbar select{flex:1 1 45%}
+  }
+
+  /* — Альбомная (landscape) на телефоне — */
+  @media (max-width:900px) and (orientation:landscape) and (max-height:500px){
+    nav.tabs{padding:2px 4px calc(2px + env(safe-area-inset-bottom)) 4px}
+    nav.tabs button{padding:4px 2px;font-size:9px}
+    nav.tabs button::before{font-size:16px;margin-bottom:0}
+    .wrap{padding-bottom:calc(58px + env(safe-area-inset-bottom))}
   }
 </style>
 </head>
@@ -443,8 +813,9 @@ const PLATFORM_ACTIONS = {
   YouTube:{open:"Открыть YouTube Studio", url:"https://studio.youtube.com/", create:"https://studio.youtube.com/"},
   VK:{open:"Открыть VK", url:"https://vk.com/", create:"https://vk.com/"}
 };
-const STATUS_LABEL = {draft:"Черновик", review:"На ревью", ready:"Готов", published:"Опубликован"};
-const STATUS_CLASS = {draft:"", review:"warn", ready:"ok", published:"gold"};
+const STATUS_LABEL = {draft:"Черновик", review:"На ревью", ready:"Готов", published:"Опубликован", deleted:"Удалён"};
+const STATUS_CLASS = {draft:"", review:"warn", ready:"ok", published:"gold", deleted:"red"};
+const VISIBLE_STATUSES = ["draft","review","ready","published"];
 
 /* ===== STATE ===== */
 const LS_KEY = "goldeneggs_dashboard_v1";
@@ -567,7 +938,8 @@ function fmtDateTime(iso){
 }
 function isoDate(iso){ if(!iso) return ""; return iso.substring(0,10); }
 function todayISO(){ const d=new Date(); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
-function listPosts(){ return Object.values(state.posts).sort((a,b)=> (a.datetime||"").localeCompare(b.datetime||"")); }
+function listPosts(){ return Object.values(state.posts).filter(p => p.status !== "deleted").sort((a,b)=> (a.datetime||"").localeCompare(b.datetime||"")); }
+function deletedPosts(){ return Object.values(state.posts).filter(p => p.status === "deleted").sort((a,b)=> (a.datetime||"").localeCompare(b.datetime||"")); }
 function applyFilters(posts){
   const fp = $("#filterPlatform").value, fs = $("#filterStatus").value, fm = $("#filterMode").value;
   return posts.filter(p => (!fp || p.platform===fp) && (!fs || p.status===fs) && (!fm || p.mode===fm));
@@ -643,8 +1015,8 @@ function postCard(p){
         </div>
       </div>
       <div>
-        <select class="status-sel" data-id="${p.id}">
-          ${Object.entries(STATUS_LABEL).map(([k,v])=>`<option value="${k}" ${p.status===k?"selected":""}>${v}</option>`).join("")}
+        <select class="status-sel" data-id="${p.id}" data-status="${p.status||"draft"}">
+          ${VISIBLE_STATUSES.map(k=>`<option value="${k}" ${p.status===k?"selected":""}>${STATUS_LABEL[k]}</option>`).join("")}
         </select>
       </div>
     </div>
@@ -911,14 +1283,13 @@ function closePublishModal(){
 }
 
 function openDeleteAnyaModal(p){
-  const filled = isAnyaFilled(p);
-  const what = [];
-  if(p.text) what.push("текст");
-  if(p.cover) what.push("обложку");
-  if(p.media) what.push("картинки");
-  if(p.hashtags) what.push("хэштеги");
-  const lostLine = what.length
-    ? `Будут удалены: <strong>${what.join(", ")}</strong>.`
+  const filledParts = [];
+  if(p.text) filledParts.push("текст");
+  if(p.cover) filledParts.push("обложку");
+  if(p.media) filledParts.push("картинки");
+  if(p.hashtags) filledParts.push("хэштеги");
+  const contentLine = filledParts.length
+    ? `Заполнено: <strong>${filledParts.join(", ")}</strong>. Всё это сохранится — пост просто скроется из списков.`
     : `Пост ещё не заполнен — терять нечего.`;
   $("#modalBody").innerHTML = `
     <div style="max-width:480px">
@@ -931,8 +1302,8 @@ function openDeleteAnyaModal(p){
         <div class="small">📅 ${fmtDateTime(p.datetime)}${p.mode?` · ${escape(p.mode)}`:""}</div>
       </div>
       <div class="small" style="line-height:1.55;margin-bottom:18px">
-        ${lostLine}<br>
-        <span style="color:#ff8a72">Действие нельзя отменить — пост уйдёт из таблицы навсегда.</span>
+        ${contentLine}<br>
+        <span class="small">Пост уйдёт в архив с пометкой «Удалён». Чтобы вернуть — поменяйте статус обратно в Google-таблице.</span>
       </div>
       <div style="display:flex;gap:10px;justify-content:flex-end">
         <button class="btn" data-close-pm>Отмена</button>
@@ -1148,7 +1519,22 @@ function renderAnya(){
     const status = x.status==="published" ? "🚀" : (filled ? "✓" : "○");
     return `<div class="${cls}"><button class="anya-jump-area" data-anya-jump="${x.id}" title="${escape(x.title||'(без названия)')}"><span class="ai-time">${hhmm}</span><span class="ai-title">${escape(x.title||'(без названия)')}</span></button><span class="ai-status">${status}</span><button class="ai-del" data-anya-del="${x.id}" title="Удалить пост">✕</button></div>`;
   }).join("");
-  const listBlock = `<div class="anya-side"><button class="anya-add" data-anya-add>＋ Добавить пост</button><div class="anya-list" id="anyaList">${listHtml}</div></div>`;
+  const listSummary = allDone ? "🎉 Все заполнены" : `Список постов · ${filled} из ${posts.length}`;
+  // На десктопе список всегда раскрыт (summary спрятан CSS-ом),
+  // на мобильном — управляет пользователь через state.anyaListOpen
+  const isMobile = (typeof window !== "undefined" && window.matchMedia)
+    ? window.matchMedia("(max-width:720px)").matches : false;
+  const listOpenAttr = (!isMobile || state.anyaListOpen) ? " open" : "";
+  const trashed = deletedPosts();
+  const trashHtml = trashed.map(x => {
+    const d = x.datetime ? new Date(x.datetime) : null;
+    const ddmm = d ? `${pad(d.getDate())}.${pad(d.getMonth()+1)}` : "—";
+    return `<div class="anya-item"><span class="anya-jump-area" style="cursor:default"><span class="ai-time">${ddmm}</span><span class="ai-title">${escape(x.title||'(без названия)')}</span></span><span class="ai-status">🗑</span><button class="ai-restore" data-anya-restore="${x.id}" title="Восстановить пост">↺</button></div>`;
+  }).join("");
+  const trashBlock = trashed.length
+    ? `<details class="anya-trash"><summary>🗑 Удалённые · ${trashed.length}</summary><div class="anya-trash-list">${trashHtml}</div></details>`
+    : "";
+  const listBlock = `<details class="anya-side" id="anyaListWrap"${listOpenAttr}><summary class="anya-side-summary">📋 ${escape(listSummary)}</summary><button class="anya-add" data-anya-add>＋ Добавить пост</button><div class="anya-list" id="anyaList">${listHtml}</div></details>${trashBlock}`;
 
   const platforms = postPlatforms(p);
   const platformsBlock = `
@@ -1189,7 +1575,9 @@ function renderAnya(){
           ${p.mode?`<span class="pill">${escape(p.mode)}</span>`:""}
           <span class="af-dt-cell" title="Дата публикации"><span class="dt-icon">📅</span><input type="date" data-field="datetime-date" data-id="${p.id}" value="${(p.datetime||"").substring(0,10)}"></span>
           <span class="af-dt-cell" title="Время публикации"><span class="dt-icon">⏰</span><input type="time" data-field="datetime-time" data-id="${p.id}" value="${(p.datetime||"").substring(11,16)}"></span>
-          <span class="pill ${STATUS_CLASS[p.status]||""}">${STATUS_LABEL[p.status]||p.status}</span>
+          <select class="status-sel" data-id="${p.id}" data-status="${p.status||"draft"}" title="Статус поста">
+            ${VISIBLE_STATUSES.map(k=>`<option value="${k}" ${p.status===k?"selected":""}>${STATUS_LABEL[k]}</option>`).join("")}
+          </select>
         </div>
       </div>
 
@@ -1425,7 +1813,7 @@ $$("nav.tabs button").forEach(b => b.addEventListener("click", e => {
 });
 
 document.addEventListener("click", e => {
-  const t = e.target.closest("button, a, [data-jump], [data-close-pm], [data-mark-published], [data-mark-unpublish], [data-anya-jump], [data-anya-open], [data-anya-prev], [data-anya-next], [data-anya-ready], [data-anya-del], [data-anya-del-confirm], [data-anya-add]");
+  const t = e.target.closest("button, a, [data-jump], [data-close-pm], [data-mark-published], [data-mark-unpublish], [data-anya-jump], [data-anya-open], [data-anya-prev], [data-anya-next], [data-anya-ready], [data-anya-del], [data-anya-del-confirm], [data-anya-restore], [data-anya-add]");
   if(!t) return;
   if(t.matches("[data-anya-del]")){
     e.preventDefault(); e.stopPropagation();
@@ -1440,16 +1828,25 @@ document.addEventListener("click", e => {
     const p = state.posts[id]; if(!p) return;
     const ri = rowIndexOf(p);
     if(state.anyaCurrentId === id){
-      const list = anyaPosts();
-      const idx = list.findIndex(x=>x.id===id);
-      const next = list[idx+1] || list[idx-1] || null;
-      state.anyaCurrentId = next ? next.id : null;
+      const list = anyaPosts().filter(x => x.id !== id);
+      state.anyaCurrentId = list.length ? list[0].id : null;
     }
-    delete state.posts[id]; saveState();
-    if(ri) pushDelete(ri);
+    p.status = "deleted"; saveState();
+    if(ri) pushField(ri, "status", "deleted", 0);
     closePublishModal();
     renderAnya(); renderToday(); renderAll(); renderCal();
-    flash("Пост удалён");
+    flash("Пост перенесён в архив удалённых");
+    return;
+  }
+  if(t.matches("[data-anya-restore]")){
+    e.preventDefault(); e.stopPropagation();
+    const id = t.dataset.anyaRestore;
+    const p = state.posts[id]; if(!p) return;
+    p.status = "draft"; saveState();
+    const ri = rowIndexOf(p); if(ri) pushField(ri, "status", "draft", 0);
+    state.anyaCurrentId = id;
+    renderAnya(); renderToday(); renderAll(); renderCal();
+    flash("Пост восстановлен");
     return;
   }
   if(t.matches("[data-anya-add]")){
@@ -1490,7 +1887,10 @@ document.addEventListener("click", e => {
     return;
   }
   if(t.matches("[data-anya-jump]")){
-    state.anyaCurrentId = t.dataset.anyaJump; saveState(); renderAnya();
+    state.anyaCurrentId = t.dataset.anyaJump;
+    // На мобильном список сворачивается после выбора, чтобы карточка раскрылась
+    if(window.matchMedia("(max-width:720px)").matches){ state.anyaListOpen = false; }
+    saveState(); renderAnya();
     return;
   } else if(t.matches("[data-anya-prev]")){
     const posts = anyaPosts();
@@ -1571,7 +1971,9 @@ document.addEventListener("change", e => {
   const t = e.target;
   if(t.matches(".status-sel")){
     const p = state.posts[t.dataset.id];
-    p.status = t.value; saveState(); render();
+    p.status = t.value; saveState();
+    t.dataset.status = t.value;
+    render();
     const ri = rowIndexOf(p); if(ri) pushField(ri, "status", t.value, 0);
   } else if(t.matches("[data-check]")){
     const p = state.posts[t.dataset.id];
@@ -2058,6 +2460,50 @@ document.getElementById("modal").addEventListener("click", e => {
 document.addEventListener("keydown", e => {
   if(e.key === "Escape" && document.getElementById("modal").classList.contains("show")) closePublishModal();
 });
+
+/* ===== MOBILE — детали и жесты ===== */
+/* Трекаем открыт/закрыт ли список «Аня» — чтобы не схлопывался при ре-рендере */
+document.addEventListener("toggle", e => {
+  if(e.target && e.target.id === "anyaListWrap"){
+    state.anyaListOpen = e.target.open;
+    saveState();
+  }
+}, true);
+
+/* Свайп-жесты в lightbox: влево/вправо — листать, вниз — закрыть */
+(function setupLightboxSwipes(){
+  const lb = document.getElementById("lightbox");
+  if(!lb) return;
+  let sx=0, sy=0, dx=0, dy=0, tracking=false, isMulti=false;
+  lb.addEventListener("touchstart", e => {
+    if(e.touches.length !== 1){ tracking = false; isMulti = true; return; }
+    isMulti = false;
+    const t = e.touches[0];
+    sx = t.clientX; sy = t.clientY; dx = 0; dy = 0;
+    tracking = true;
+  }, {passive:true});
+  lb.addEventListener("touchmove", e => {
+    if(!tracking) return;
+    if(e.touches.length !== 1){ tracking = false; isMulti = true; return; }
+    const t = e.touches[0];
+    dx = t.clientX - sx;
+    dy = t.clientY - sy;
+  }, {passive:true});
+  lb.addEventListener("touchend", () => {
+    if(!tracking || isMulti) return;
+    tracking = false;
+    const ax = Math.abs(dx), ay = Math.abs(dy);
+    // Свайп должен быть достаточно длинным
+    if(ax < 40 && ay < 40) return;
+    if(ax > ay){
+      // Горизонтальный свайп — листаем
+      if(dx < 0) lbNext(); else lbPrev();
+    } else if(dy > 60){
+      // Свайп вниз — закрываем
+      closeLightbox();
+    }
+  });
+})();
 
 /* init */
 window.addEventListener("error", e => {
