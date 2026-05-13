@@ -1286,7 +1286,7 @@ function postCard(p){
     </div>
 
     <div class="notes-block ${(p.notes||"").trim()?"filled":""}">
-      <div class="nb-label">📝 Заметка от Ани <span class="nb-hint">(не публикуется)</span></div>
+      <div class="nb-label">📝 Заметка <span class="nb-hint">(не публикуется)</span></div>
       <textarea data-field="notes" data-id="${p.id}" placeholder="Пометки, инструкции, нюансы публикации...">${escape(p.notes||"")}</textarea>
     </div>
 
@@ -1481,7 +1481,7 @@ function renderPublishModal(p, plat){
 
   const anyaNote = (p.notes||"").trim();
   const anyaNoteBlock = anyaNote
-    ? `<div class="pm-notes"><div class="pm-notes-label">📝 Заметка от Ани</div><div class="pm-notes-text">${escape(anyaNote)}</div></div>`
+    ? `<div class="pm-notes"><div class="pm-notes-label">📝 Заметка</div><div class="pm-notes-text">${escape(anyaNote)}</div></div>`
     : "";
 
   const html = `
@@ -1856,7 +1856,7 @@ function renderAnya(){
       </div>
 
       <div class="notes-block ${(p.notes||"").trim()?"filled":""}">
-        <div class="nb-label">📝 Заметка для Дмитрия <span class="nb-hint">(не публикуется)</span></div>
+        <div class="nb-label">📝 Заметка <span class="nb-hint">(не публикуется)</span></div>
         <textarea data-field="notes" data-id="${p.id}" placeholder="Например: «обрезать обложку сверху», «опубликовать только в Reels», «здесь нужна геолокация»...">${escape(p.notes||"")}</textarea>
       </div>
 
