@@ -684,3 +684,85 @@ function json_(obj) {
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }
+
+// ===================================================================
+// Instagram publishing (Этап 2.0) — план plans/2026-05-26-avtopublikaciya-v-instagram.md
+// ===================================================================
+
+const GRAPH_VERSION = 'v23.0';
+const GRAPH_BASE = 'https://graph.facebook.com/';
+
+/** Читает токен и IG Business Account ID из Script Properties. */
+function igProps_() {
+  const props = PropertiesService.getScriptProperties();
+  const igUserId = props.getProperty('IG_USER_ID');
+  const token = props.getProperty('IG_ACCESS_TOKEN');
+  if (!igUserId || !token) {
+    throw new Error('Нет IG_USER_ID или IG_ACCESS_TOKEN в Script Properties (Project Settings → Script Properties).');
+  }
+  return { igUserId: igUserId, token: token };
+}
+
+/**
+ * Прямая ссылка на ПОЛНОРАЗМЕРНУЮ картинку Google Drive — для Meta.
+ * Drive thumbnail (sz=w400) Meta не скачает; нужен реальный JPEG/PNG публичной папки.
+ */
+function driveDirectUrl_(fileId, px) {
+  return 'https://lh3.googleusercontent.com/d/' + fileId + '=w' + (px || 1440);
+}
+
+/**
+ * ТЕСТ Фазы 1 (запускать из редактора Apps Script: Run → testIgContainer_).
+ * Берёт первую картинку первого поста с медиа, создаёт media-контейнер в IG
+ * и логирует результат. НЕ публикует — на странице ничего не появляется.
+ * Проверяет главную гипотезу: примет ли Meta ссылку lh3.googleusercontent.com.
+ * Имя БЕЗ завершающего «_» — иначе Apps Script считает функцию приватной
+ * и не показывает её в выпадающем списке «Выполнить».
+ */
+function testIgContainer() {
+  const creds = igProps_();
+  const sheet = getSheet_();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < FIRST_DATA_ROW) throw new Error('В листе нет постов.');
+
+  const mediaCol = COLS.media.col;
+  const titleCol = COLS.title.col;
+  const vals = sheet.getRange(FIRST_DATA_ROW, 1, lastRow - FIRST_DATA_ROW + 1, Math.max(mediaCol, titleCol)).getValues();
+
+  let mediaCell = '', title = '', foundRow = 0;
+  for (let i = 0; i < vals.length; i++) {
+    const cell = String(vals[i][mediaCol - 1] || '').trim();
+    if (cell) { mediaCell = cell; title = String(vals[i][titleCol - 1] || ''); foundRow = FIRST_DATA_ROW + i; break; }
+  }
+  if (!mediaCell) throw new Error('Не нашёл ни одного поста с медиа.');
+
+  const firstUrl = mediaCell.split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean)[0];
+  const fileId = extractDriveId_(firstUrl);
+  if (!fileId) throw new Error('Не смог извлечь Drive ID из: ' + firstUrl);
+
+  const imageUrl = driveDirectUrl_(fileId, 1440);
+  Logger.log('Пост: «%s» (строка %s)', title, foundRow);
+  Logger.log('Drive ID: %s', fileId);
+  Logger.log('image_url для Meta: %s', imageUrl);
+
+  const endpoint = GRAPH_BASE + GRAPH_VERSION + '/' + creds.igUserId + '/media';
+  const resp = UrlFetchApp.fetch(endpoint, {
+    method: 'post',
+    muteHttpExceptions: true,
+    payload: {
+      image_url: imageUrl,
+      caption: '[ТЕСТ контейнера — не опубликовано] ' + title,
+      access_token: creds.token
+    }
+  });
+  const code = resp.getResponseCode();
+  Logger.log('HTTP %s', code);
+  Logger.log('Ответ Meta: %s', resp.getContentText());
+
+  if (code === 200) {
+    Logger.log('✅ УСПЕХ: Meta приняла ссылку, контейнер создан (creation_id выше). НЕ опубликован.');
+  } else {
+    Logger.log('❌ Meta отвергла. Частые причины: картинку не скачать (доступ к папке), формат не JPEG/PNG, соотношение сторон вне 4:5…1.91:1.');
+  }
+  return resp.getContentText();
+}
