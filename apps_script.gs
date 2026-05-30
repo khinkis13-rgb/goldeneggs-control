@@ -1074,6 +1074,69 @@ function driveVideoUrl_(fileId) {
 }
 
 /**
+ * ДИАГНОСТИКА Reels (Run → diagReels). НЕ публикует.
+ * Находит первый пост, чьё медиа — видео ПО MIME (как продакшн), и печатает
+ * всё, что нужно для разбора 2207082: размер, MIME, доступность файла и —
+ * главное — что реально отдаёт video_url (настоящие байты mp4 или HTML-заглушку).
+ */
+function diagReels() {
+  const creds = igProps_();
+  const sheet = getSheet_();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < FIRST_DATA_ROW) throw new Error('В листе нет постов.');
+  const vals = sheet.getRange(FIRST_DATA_ROW, 1, lastRow - FIRST_DATA_ROW + 1,
+    Math.max(COLS.media.col, COLS.title.col)).getValues();
+
+  // Ищем видео так же, как продакшн — по Drive MIME, а не по имени.
+  let videoUrl = '', title = '', fileId = '';
+  for (let i = 0; i < vals.length && !videoUrl; i++) {
+    const lines = String(vals[i][COLS.media.col - 1] || '').split(/\n+/)
+      .map(function (s) { return s.trim().split('#')[0]; }).filter(Boolean);
+    for (let j = 0; j < lines.length; j++) {
+      if (igIsDriveVideo_(lines[j])) {
+        videoUrl = lines[j]; title = String(vals[i][COLS.title.col - 1] || '');
+        fileId = extractDriveId_(lines[j]); break;
+      }
+    }
+  }
+  if (!videoUrl) { Logger.log('❌ Видео по MIME не найдено ни в одном посте.'); return 'no video'; }
+  Logger.log('Пост: «%s»', title);
+  Logger.log('URL из таблицы: %s', videoUrl);
+  Logger.log('Drive ID: %s', fileId || '(не Drive-ссылка)');
+
+  // 1) Доступ к файлу, размер, MIME
+  if (fileId) {
+    try {
+      const f = DriveApp.getFileById(fileId);
+      Logger.log('Имя: %s | MIME: %s | Размер: %s МБ | Доступ: %s',
+        f.getName(), f.getMimeType(), (f.getSize() / 1048576).toFixed(1),
+        f.getSharingAccess());
+    } catch (e) {
+      Logger.log('❌ Нет доступа к файлу через DriveApp: %s (значит и размер не читается, и Meta может не скачать)', e && e.message || e);
+    }
+  }
+
+  // 2) Что реально отдаёт ссылка для Meta
+  const directUrl = fileId ? driveVideoUrl_(fileId) : videoUrl;
+  Logger.log('video_url для Meta: %s', directUrl);
+  const resp = UrlFetchApp.fetch(directUrl, { method: 'get', muteHttpExceptions: true, followRedirects: true });
+  const code = resp.getResponseCode();
+  const ct = resp.getHeaders()['Content-Type'] || resp.getHeaders()['content-type'] || '(нет)';
+  const bytes = resp.getContent();
+  Logger.log('HTTP %s | Content-Type: %s | Размер ответа: %s КБ', code, ct, Math.round(bytes.length / 1024));
+  const head = resp.getContentText().slice(0, 200).replace(/\s+/g, ' ');
+  if (/^\s*</.test(resp.getContentText()) || /text\/html/i.test(ct)) {
+    Logger.log('❌ Ссылка отдала HTML, а не видео (заглушка/страница входа). Вот начало: %s', head);
+    Logger.log('→ Причина 2207082: Meta качает HTML вместо mp4. Файл слишком большой или папка не публична.');
+  } else if (/video\//i.test(ct)) {
+    Logger.log('✅ Ссылка отдаёт настоящее видео (%s). Значит дело НЕ в скачивании — смотрим формат/кодек/длину или временный сбой Meta.', ct);
+  } else {
+    Logger.log('⚠ Неоднозначный Content-Type. Начало ответа: %s', head);
+  }
+  return 'done';
+}
+
+/**
  * ТЕСТ Фазы 0 (запускать из редактора Apps Script: Run → testIgReelsContainer).
  * Берёт первый пост, у которого медиа — видео (.mp4/.mov/…), строит video_url
  * по варианту A, создаёт REELS-контейнер и опрашивает его готовность.
