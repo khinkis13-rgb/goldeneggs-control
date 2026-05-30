@@ -1632,8 +1632,21 @@ function igPublishConfirm(id){
     box.innerHTML = `<div class="pm-ig-err">⚠ Нет картинок для публикации. Пусть Аня прикрепит медиа в карточке поста.</div>`;
     return;
   }
-  if(items.some(it => IG_VIDEO_RE.test(it.name||"") || IG_VIDEO_RE.test(it.url||""))){
-    box.innerHTML = `<div class="pm-ig-err">🎬 Похоже, это видео/Reels. Автопубликация видео пока не поддержана — опубликуйте вручную кнопками ниже.</div>`;
+  const isVideo = it => IG_VIDEO_RE.test(it.name||"") || IG_VIDEO_RE.test(it.url||"");
+  const videoItems = items.filter(isVideo);
+  if(videoItems.length){
+    if(items.length>1){
+      box.innerHTML = `<div class="pm-ig-err">🎬 Для Reels оставьте в «Медиа» <b>один видеофайл</b> (сейчас ${items.length}). Карусели с видео и микс «видео + фото» пока не поддержаны — уберите лишнее или опубликуйте вручную.</div>`;
+      return;
+    }
+    box.innerHTML = `
+      <div class="pm-ig-confirm-box">
+        <div>Опубликовать <b>🎬 Reels</b> в Instagram <b>прямо сейчас</b>? Видео появится в аккаунте после обработки (до ~1 минуты).</div>
+        <div class="row" style="gap:8px;margin-top:10px">
+          <button class="btn primary pm-ig-confirm" data-id="${id}">✓ Подтвердить публикацию</button>
+          <button class="btn pm-ig-cancel">Отмена</button>
+        </div>
+      </div>`;
     return;
   }
   if(urls.length>10){
@@ -1655,21 +1668,28 @@ async function igPublishNow(id, btn){
   const p = state.posts[id]; if(!p) return;
   const box = $("#pmIgStatus");
   const c = contentForPlatform(p, "Instagram");
-  const mediaUrls = parseMediaList(c.media).map(it=>String(it.url).split("#")[0]).filter(Boolean);
+  const items = parseMediaList(c.media);
+  const mediaUrls = items.map(it=>String(it.url).split("#")[0]).filter(Boolean);
   if(!mediaUrls.length){
-    if(box){ box.style.display="block"; box.innerHTML = `<div class="pm-ig-err">⚠ Нет картинок для публикации.</div>`; }
+    if(box){ box.style.display="block"; box.innerHTML = `<div class="pm-ig-err">⚠ Нет медиа для публикации.</div>`; }
     return;
   }
+  const isVideo = it => IG_VIDEO_RE.test(it.name||"") || IG_VIDEO_RE.test(it.url||"");
+  const isReels = items.length===1 && isVideo(items[0]);
   const caption = buildFullTextFor(p, "Instagram");
   const ri = rowIndexOf(p);
   igPublishInFlight = true;
   if(btn){ btn.disabled = true; }
   if(box){
     box.style.display="block";
-    box.innerHTML = `<div class="pm-ig-loading">⏳ Публикуется в Instagram…${mediaUrls.length>1?` (карусель из ${mediaUrls.length} фото — может занять до минуты)`:""}</div>`;
+    box.innerHTML = isReels
+      ? `<div class="pm-ig-loading">⏳ Видео обрабатывается Instagram — это может занять до минуты, не закрывайте окно…</div>`
+      : `<div class="pm-ig-loading">⏳ Публикуется в Instagram…${mediaUrls.length>1?` (карусель из ${mediaUrls.length} фото — может занять до минуты)`:""}</div>`;
   }
   try{
-    const res = await api({ action:"publishInstagram", rowIndex: ri, caption: caption, mediaUrls: mediaUrls });
+    const res = isReels
+      ? await api({ action:"publishInstagramReels", rowIndex: ri, caption: caption, videoUrl: mediaUrls[0] })
+      : await api({ action:"publishInstagram", rowIndex: ri, caption: caption, mediaUrls: mediaUrls });
     p.status = "published";
     if(res.permalink) p.ig_permalink = res.permalink;
     if(res.igPostId) p.ig_post_id = res.igPostId;
@@ -2888,8 +2908,9 @@ document.addEventListener("input", e => {
       const timePart = (field === "datetime-time" ? t.value : cur.substring(11,16)) || "12:00";
       p.datetime = `${datePart}T${timePart}`;
       saveState();
-      const ri = rowIndexOf(p);
-      if(ri) pushField(ri, "datetime", p.datetime, 800);
+      // Дата/время сохраняются по кнопке «Сохранить» (как текст), а не молча в фоне —
+      // чтобы было видно, что изменение есть и что оно ушло в таблицу.
+      markPostDirty(p.id, "datetime");
       updateAnyaProgressLight();
       return;
     }

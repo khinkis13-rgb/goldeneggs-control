@@ -296,6 +296,10 @@ function handle_(payload) {
       const r = publishInstagram_(payload);
       return json_({ ok: true, igPostId: r.igPostId, permalink: r.permalink });
     }
+    if (payload.action === 'publishInstagramReels') {
+      const r = publishInstagramReels_(payload);
+      return json_({ ok: true, igPostId: r.igPostId, permalink: r.permalink });
+    }
     if (payload.action === 'upload') {
       const r = uploadFile_(payload);
       return json_({ ok: true, url: r.url, fileId: r.fileId, name: r.name });
@@ -860,6 +864,86 @@ function publishInstagram_(payload) {
   return { igPostId: igPostId, permalink: permalink };
 }
 
+/** Создаёт REELS-контейнер для одного видео. Возвращает creation_id. */
+function igCreateReelsContainer_(creds, videoUrl, caption) {
+  const payload = { media_type: 'REELS', video_url: videoUrl, access_token: creds.token };
+  if (caption) payload.caption = caption;
+  const data = igGraphPost_(GRAPH_BASE + GRAPH_VERSION + '/' + creds.igUserId + '/media', payload);
+  if (!data.id) throw new Error('Instagram: REELS-контейнер создан без id');
+  return data.id;
+}
+
+/**
+ * Ждёт готовности видео-контейнера (видео обрабатывается асинхронно).
+ * Поллит status_code до FINISHED. На ERROR/таймаут — читаемая ошибка.
+ * Транскодинг reels обычно ~50 c; держим запас до ~150 c (лимит Apps Script — 6 мин).
+ */
+function igWaitContainerReady_(creds, creationId) {
+  for (let attempt = 0; attempt < 30; attempt++) {
+    Utilities.sleep(5000);
+    const url = GRAPH_BASE + GRAPH_VERSION + '/' + creationId +
+      '?fields=status_code,status&access_token=' + encodeURIComponent(creds.token);
+    const resp = UrlFetchApp.fetch(url, { method: 'get', muteHttpExceptions: true });
+    let data = {};
+    try { data = JSON.parse(resp.getContentText()); } catch (_) {}
+    const status = data.status_code || '';
+    if (status === 'FINISHED') return;
+    if (status === 'ERROR') {
+      throw new Error('Instagram не смог обработать видео: ' + (data.status || 'ERROR') +
+        '. Нужен MP4/MOV (H.264 + AAC), вертикаль 9:16, до 90 c.');
+    }
+  }
+  throw new Error('Instagram слишком долго обрабатывает видео (>2.5 мин). Попробуйте ещё раз или опубликуйте вручную.');
+}
+
+/**
+ * Публикация Reels в Instagram по запросу из пульта.
+ * payload: { rowIndex, caption, videoUrl }. Один видеофайл = один Reels.
+ * Контейнер REELS → ожидание готовности → media_publish → permalink.
+ * После успеха пишет в строку: статус published, ig_post_id, ig_permalink.
+ */
+function publishInstagramReels_(payload) {
+  const creds = igProps_();
+  const rowIndex = payload.rowIndex;
+  let videoUrl = payload.videoUrl;
+  let caption = payload.caption;
+
+  // Fallback из строки листа, если фронт не передал
+  if (!videoUrl && rowIndex) {
+    const sheet = getSheet_();
+    const mediaCell = String(sheet.getRange(rowIndex, COLS.media.col).getValue() || '');
+    const VIDEO_RE = /\.(mp4|mov|m4v|webm|avi|mkv)(\?|#|$)/i;
+    videoUrl = mediaCell.split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean)
+      .filter(function (u) { return VIDEO_RE.test(u); })[0] || '';
+    if (caption === undefined || caption === null) {
+      const txt = String(sheet.getRange(rowIndex, COLS.text.col).getValue() || '').trim();
+      const tags = String(sheet.getRange(rowIndex, COLS.hashtags.col).getValue() || '').trim();
+      caption = txt + (tags ? '\n\n' + tags : '');
+    }
+  }
+  caption = String(caption || '');
+
+  // Чистим URL (убираем #-метаданные) и строим прямую ссылку для Meta
+  const clean = String(videoUrl || '').split('#')[0].trim();
+  if (!clean) throw new Error('Нет видео для публикации.');
+  const id = extractDriveId_(clean);
+  const directUrl = id ? driveVideoUrl_(id) : clean;
+
+  const creationId = igCreateReelsContainer_(creds, directUrl, caption);
+  igWaitContainerReady_(creds, creationId);
+  const igPostId = igPublishContainer_(creds, creationId);
+  const permalink = igPermalink_(creds, igPostId);
+
+  if (rowIndex) {
+    const sheet = getSheet_();
+    sheet.getRange(rowIndex, COLS.status.col).setValue('published');
+    sheet.getRange(rowIndex, COLS.ig_post_id.col).setValue(igPostId);
+    if (permalink) sheet.getRange(rowIndex, COLS.ig_permalink.col).setValue(permalink);
+  }
+
+  return { igPostId: igPostId, permalink: permalink };
+}
+
 /**
  * ТЕСТ Фазы 1 (запускать из редактора Apps Script: Run → testIgContainer_).
  * Берёт первую картинку первого поста с медиа, создаёт media-контейнер в IG
@@ -914,4 +998,120 @@ function testIgContainer() {
     Logger.log('❌ Meta отвергла. Частые причины: картинку не скачать (доступ к папке), формат не JPEG/PNG, соотношение сторон вне 4:5…1.91:1.');
   }
   return resp.getContentText();
+}
+
+/**
+ * Прямая ссылка на ВИДЕО Google Drive — для Meta Reels.
+ * Картиночный трюк lh3.googleusercontent.com/d/ID видео не отдаёт.
+ * Вариант A (Фаза 0): прямое скачивание Drive. Для файлов до ~100 МБ Drive
+ * отдаёт байты; для больших — HTML-заглушку антивируса (Meta не распарсит).
+ */
+function driveVideoUrl_(fileId) {
+  return 'https://drive.google.com/uc?export=download&id=' + fileId;
+}
+
+/**
+ * ТЕСТ Фазы 0 (запускать из редактора Apps Script: Run → testIgReelsContainer).
+ * Берёт первый пост, у которого медиа — видео (.mp4/.mov/…), строит video_url
+ * по варианту A, создаёт REELS-контейнер и опрашивает его готовность.
+ * НЕ публикует. Главная проверка: скачает ли Meta видео с Google Drive.
+ * Имя БЕЗ «_», чтобы функция была видна в списке «Выполнить».
+ */
+function testIgReelsContainer() {
+  const VIDEO_RE = /\.(mp4|mov|m4v|webm|avi|mkv)(\?|#|$)/i;
+  const creds = igProps_();
+  const sheet = getSheet_();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < FIRST_DATA_ROW) throw new Error('В листе нет постов.');
+
+  const mediaCol = COLS.media.col;
+  const titleCol = COLS.title.col;
+  const vals = sheet.getRange(FIRST_DATA_ROW, 1, lastRow - FIRST_DATA_ROW + 1, Math.max(mediaCol, titleCol)).getValues();
+
+  // Имя файла (с .mp4) лежит в #n=...-метаданных, а не в самом Drive-URL.
+  // Парсим имя как фронт и проверяем расширение и в имени, и в URL.
+  function nameOf_(raw) {
+    const hi = raw.indexOf('#');
+    if (hi < 0) return '';
+    let name = '';
+    raw.slice(hi + 1).split('&').forEach(function (kv) {
+      const eq = kv.indexOf('=');
+      if (kv.slice(0, eq) === 'n') {
+        try { name = decodeURIComponent(kv.slice(eq + 1).replace(/\+/g, ' ')); }
+        catch (_) { name = kv.slice(eq + 1); }
+      }
+    });
+    return name;
+  }
+
+  let videoUrl = '', title = '', foundRow = 0;
+  const seen = [];
+  for (let i = 0; i < vals.length && !videoUrl; i++) {
+    const lines = String(vals[i][mediaCol - 1] || '').split(/\n+/)
+      .map(function (s) { return s.trim(); }).filter(Boolean);
+    for (let j = 0; j < lines.length; j++) {
+      const raw = lines[j];
+      const url = raw.split('#')[0];
+      const name = nameOf_(raw);
+      seen.push(name || url);
+      if (VIDEO_RE.test(name) || VIDEO_RE.test(url)) {
+        videoUrl = url; title = String(vals[i][titleCol - 1] || ''); foundRow = FIRST_DATA_ROW + i; break;
+      }
+    }
+  }
+  Logger.log('Просмотрено медиа-файлов: %s. Имена: %s', seen.length, seen.join(' | ') || '(пусто)');
+  if (!videoUrl) throw new Error('Не нашёл видео в поле «Медиа» ни у одного поста. Список найденных файлов — в логе выше. Прикрепи mp4 в карточку reels (именно в «Медиа», не в «Обложку»).');
+
+  const fileId = extractDriveId_(videoUrl);
+  if (!fileId) throw new Error('Не смог извлечь Drive ID из: ' + videoUrl);
+
+  const directUrl = driveVideoUrl_(fileId);
+  Logger.log('Пост: «%s» (строка %s)', title, foundRow);
+  Logger.log('Drive ID: %s', fileId);
+  Logger.log('video_url для Meta: %s', directUrl);
+
+  // 1) Создаём REELS-контейнер
+  const createResp = UrlFetchApp.fetch(GRAPH_BASE + GRAPH_VERSION + '/' + creds.igUserId + '/media', {
+    method: 'post',
+    muteHttpExceptions: true,
+    payload: {
+      media_type: 'REELS',
+      video_url: directUrl,
+      caption: '[ТЕСТ Reels — не опубликовано] ' + title,
+      access_token: creds.token
+    }
+  });
+  Logger.log('Создание контейнера — HTTP %s', createResp.getResponseCode());
+  Logger.log('Ответ Meta: %s', createResp.getContentText());
+  if (createResp.getResponseCode() !== 200) {
+    Logger.log('❌ Контейнер не создан. Скорее всего Meta не смогла скачать видео (Drive отдал HTML-заглушку или нет доступа). Переходим к варианту B (прокси).');
+    return createResp.getContentText();
+  }
+  const container = JSON.parse(createResp.getContentText());
+  const creationId = container.id;
+  Logger.log('Контейнер создан: %s. Ждём обработки видео…', creationId);
+
+  // 2) Поллинг готовности: video обрабатывается асинхронно
+  let status = '';
+  for (let attempt = 0; attempt < 12; attempt++) {
+    Utilities.sleep(5000);
+    const stResp = UrlFetchApp.fetch(
+      GRAPH_BASE + GRAPH_VERSION + '/' + creationId +
+      '?fields=status_code,status&access_token=' + encodeURIComponent(creds.token),
+      { method: 'get', muteHttpExceptions: true }
+    );
+    const st = JSON.parse(stResp.getContentText());
+    status = st.status_code || '';
+    Logger.log('Попытка %s: status_code=%s status=%s', attempt + 1, status, st.status || '');
+    if (status === 'FINISHED') {
+      Logger.log('✅ УСПЕХ: Meta скачала и обработала видео. Вариант A работает — можно строить Фазу 1. Контейнер НЕ опубликован.');
+      return stResp.getContentText();
+    }
+    if (status === 'ERROR') {
+      Logger.log('❌ Meta вернула ERROR при обработке. Видео скачалось, но формат/кодек не подошёл (нужен H.264/AAC, MP4/MOV, 9:16). Детали выше.');
+      return stResp.getContentText();
+    }
+  }
+  Logger.log('⏱ Таймаут ожидания (status=%s). Видео может быть слишком длинным/тяжёлым, либо Drive отдаёт медленно.', status);
+  return 'TIMEOUT status=' + status;
 }
