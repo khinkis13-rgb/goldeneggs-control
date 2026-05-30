@@ -913,8 +913,13 @@ function igWaitContainerReady_(creds, creationId) {
     const status = data.status_code || '';
     if (status === 'FINISHED') return;
     if (status === 'ERROR') {
-      throw new Error('Instagram не смог обработать видео: ' + (data.status || 'ERROR') +
-        '. Нужен MP4/MOV (H.264 + AAC), вертикаль 9:16, до 90 c.');
+      const detail = String(data.status || 'ERROR');
+      // 2207082/2207001 — временный сбой серверов Instagram, лечится повтором.
+      if (/2207082|2207001/.test(detail)) {
+        throw new Error('Временный сбой Instagram (' + detail + '). Это не про ваше видео — просто нажмите «Опубликовать» ещё раз через 1–2 минуты.');
+      }
+      throw new Error('Instagram не смог обработать видео: ' + detail +
+        '. Проверьте формат: MP4/MOV (H.264 + AAC), вертикаль 9:16, 3–90 c.');
     }
   }
   throw new Error('Instagram слишком долго обрабатывает видео (>2.5 мин). Попробуйте ещё раз или опубликуйте вручную.');
@@ -960,8 +965,24 @@ function igDoReels_(creds, cleanVideoUrl, caption, rowIndex) {
   const id = extractDriveId_(cleanVideoUrl);
   const directUrl = id ? driveVideoUrl_(id) : cleanVideoUrl;
 
-  const creationId = igCreateReelsContainer_(creds, directUrl, caption);
-  igWaitContainerReady_(creds, creationId);
+  // Создание + обработка с одним авто-повтором на временный сбой Instagram
+  // (2207082/2207001). Повтор безопасен — публикации до этого момента ещё нет.
+  let creationId;
+  for (let tryNo = 1; tryNo <= 2; tryNo++) {
+    try {
+      creationId = igCreateReelsContainer_(creds, directUrl, caption);
+      igWaitContainerReady_(creds, creationId);
+      break;
+    } catch (e) {
+      const msg = String(e && e.message || e);
+      if (tryNo < 2 && /Временный сбой|2207082|2207001/.test(msg)) {
+        Utilities.sleep(15000);
+        continue;
+      }
+      throw e;
+    }
+  }
+
   const igPostId = igPublishContainer_(creds, creationId);
   const permalink = igPermalink_(creds, igPostId);
 
