@@ -312,6 +312,10 @@
   .link-add-go{flex:0 0 auto;border:1px solid var(--gold-dim);background:rgba(230,184,100,.08);color:var(--gold);border-radius:10px;padding:8px 14px;cursor:pointer;font-family:inherit;font-weight:600}
   .link-add-go:hover{background:var(--gold);color:#1b160c}
 
+  /* Галочка «добавлять хэштеги» */
+  .tags-toggle{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--cream);cursor:pointer;margin-bottom:8px;font-weight:600}
+  .tags-toggle input{width:auto;margin:0}
+
   /* ANYA focus mode */
   .anya-progress{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:14px}
   .anya-progress .progress{margin-top:8px}
@@ -1429,7 +1433,8 @@ function postCard(p){
     <details>
       <summary>#️⃣ Хэштеги · ответственный</summary>
       <div style="margin-top:8px">
-        <div class="small">Хэштеги (если пусто — берутся базовые из настроек)</div>
+        <label class="tags-toggle"><input type="checkbox" data-tags-on data-id="${p.id}" ${tagsEnabled(p)?"checked":""}> Добавлять хэштеги к этому посту</label>
+        <div class="small">Хэштеги (если пусто — берутся базовые из настроек). Попадут в пост только при включённой галочке.</div>
         <textarea data-field="hashtags" data-id="${p.id}" placeholder="${escape(state.settings.baseHashtags)}">${escape(p.hashtags||"")}</textarea>
         <div class="small" style="margin-top:8px">Ответственный</div>
         <input type="text" data-field="owner" data-id="${p.id}" value="${escape(p.owner||"")}" placeholder="Аня / Дмитрий / подрядчик">
@@ -1454,8 +1459,10 @@ function postCard(p){
   </div>`;
 }
 
+/* Хэштеги подмешиваются в пост только если включена галочка (по умолчанию выкл.) */
+function tagsEnabled(p){ return !!(p && p.checks && p.checks.tagsOn); }
 function buildFullText(p){
-  const tags = (p.hashtags || state.settings.baseHashtags || "").trim();
+  const tags = tagsEnabled(p) ? (p.hashtags || state.settings.baseHashtags || "").trim() : "";
   return (p.text||"").trim() + (tags?("\n\n"+tags):"");
 }
 function escape(s){ return String(s||"").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
@@ -1571,7 +1578,7 @@ function renderCoverPreview(value){
 /* ===== PUBLISH MODAL ===== */
 function buildFullTextFor(p, plat){
   const c = contentForPlatform(p, plat);
-  const tags = (c.hashtags || state.settings.baseHashtags || "").trim();
+  const tags = tagsEnabled(p) ? (c.hashtags || state.settings.baseHashtags || "").trim() : "";
   return (c.text||"").trim() + (tags?("\n\n"+tags):"");
 }
 
@@ -2129,7 +2136,8 @@ function renderAnya(){
       <details>
         <summary>Дополнительно: хэштеги, ответственный</summary>
         <div style="margin-top:8px">
-          <div class="small">Хэштеги (если пусто — берутся базовые из настроек)</div>
+          <label class="tags-toggle"><input type="checkbox" data-tags-on data-id="${p.id}" ${tagsEnabled(p)?"checked":""}> Добавлять хэштеги к этому посту</label>
+          <div class="small">Хэштеги (если пусто — берутся базовые из настроек). Попадут в пост только при включённой галочке.</div>
           <textarea data-field="hashtags" data-id="${p.id}" placeholder="${escape(state.settings.baseHashtags)}">${escape(p.hashtags||"")}</textarea>
           <div class="small" style="margin-top:8px">Ответственный</div>
           <input type="text" data-field="owner" data-id="${p.id}" value="${escape(p.owner||"")}" placeholder="Аня / Дмитрий">
@@ -2808,6 +2816,12 @@ document.addEventListener("change", e => {
     p.checks = p.checks || {}; p.checks[t.dataset.check] = t.checked;
     saveState(); renderToday(); renderAll(); renderAnya();
     const ri = rowIndexOf(p); if(ri) pushField(ri, "checks", p.checks, 0);
+  } else if(t.matches("[data-tags-on]")){
+    const p = state.posts[t.dataset.id]; if(!p) return;
+    p.checks = p.checks || {}; p.checks.tagsOn = t.checked;
+    saveState(); renderToday(); renderAll(); renderAnya();
+    const ri = rowIndexOf(p); if(ri) pushField(ri, "checks", p.checks, 0);
+    flash(t.checked ? "Хэштеги будут добавлены к посту" : "Хэштеги отключены для этого поста");
   } else if(t.matches("[data-platform-toggle]")){
     const p = state.posts[t.dataset.id]; if(!p) return;
     const plat = t.dataset.platformToggle;
