@@ -3331,6 +3331,83 @@ function fileToBase64(file){
   });
 }
 
+/* ===== Проверка формата видео для Instagram (до загрузки) ===== */
+// Instagram Reels принимает MP4/MOV с H.264 или HEVC + AAC. Монтажные форматы
+// (ProRes в .mov, AVI/MKV/WEBM) валятся при публикации с ошибкой 2207082 —
+// ловим их заранее. Расширение .mov ненадёжно (iPhone тоже .mov, но H.264),
+// поэтому смотрим FourCC кодека в байтах файла, а не на имя.
+const PRORES_FOURCC = ["apch","apcn","apcs","apco","ap4h","ap4x"]; // монтажный
+const H264_FOURCC   = ["avc1","hvc1","hev1","dvh1"];               // H.264 / HEVC — ок
+const BAD_CONTAINER_RE = /\.(avi|mkv|webm|flv|wmv|mpg|mpeg|m2ts|mts|ts)(\?|#|$)/i;
+
+async function readBytes(file, start, len){
+  const blob = file.slice(start, Math.min(file.size, start + len));
+  const buf = await blob.arrayBuffer();
+  return new Uint8Array(buf);
+}
+
+function bytesToLatin1(bytes){
+  let out = ""; const CH = 0x8000;
+  for(let i=0;i<bytes.length;i+=CH){
+    out += String.fromCharCode.apply(null, bytes.subarray(i, i+CH));
+  }
+  return out;
+}
+
+function scanFourCC(bytes){
+  const s = bytesToLatin1(bytes);
+  for(const c of PRORES_FOURCC) if(s.indexOf(c) >= 0) return "prores";
+  for(const c of H264_FOURCC)   if(s.indexOf(c) >= 0) return "ok";
+  return "";
+}
+
+// Возвращает 'prores' | 'ok' | 'unknown'. Сканирует голову (1.5 МБ) и хвост
+// (4 МБ) — у монтажных .mov atom moov часто в конце файла.
+async function sniffVideoCodec(file){
+  try{
+    const head = await readBytes(file, 0, 1.5 * 1024 * 1024);
+    let r = scanFourCC(head);
+    if(r) return r;
+    if(file.size > 1.5 * 1024 * 1024){
+      const tailLen = Math.min(4 * 1024 * 1024, file.size);
+      const tail = await readBytes(file, file.size - tailLen, tailLen);
+      r = scanFourCC(tail);
+      if(r) return r;
+    }
+  }catch(_){}
+  return "unknown";
+}
+
+// null — формат ок или это не видео. Иначе {reason, fix, soft?}.
+async function inspectVideoForIG(file){
+  const name = (file.name || "").toLowerCase();
+  const type = file.type || "";
+  const isMov = /\.mov$/i.test(name) || type === "video/quicktime";
+  const isMp4 = /\.(mp4|m4v)$/i.test(name) || type === "video/mp4";
+  const isVideo = type.indexOf("video/") === 0 || isMov || isMp4 ||
+                  BAD_CONTAINER_RE.test(name) || IG_VIDEO_RE.test(name);
+  if(!isVideo) return null;
+
+  if(BAD_CONTAINER_RE.test(name)){
+    const ext = (name.match(BAD_CONTAINER_RE)[1] || "").toUpperCase();
+    return { reason:`формат ${ext} Instagram не принимает`,
+             fix:"Нужен MP4 (H.264 + AAC)." };
+  }
+
+  const codec = await sniffVideoCodec(file);
+  if(codec === "prores"){
+    return { reason:"это ProRes — монтажный формат, Instagram его не примет",
+             fix:"Сконвертируйте в MP4 (H.264 + AAC). На Mac без программ: avconvert -s видео.mov -p Preset1920x1080 -o видео.mp4" };
+  }
+  if(codec === "ok") return null; // H.264 / HEVC — публикуется нормально
+  if(isMov){
+    return { reason:"это .mov — если это монтажный экспорт (ProRes), Instagram не примет",
+             fix:"Надёжнее залить MP4 (H.264 + AAC). Видео с iPhone обычно подходит.",
+             soft:true };
+  }
+  return null;
+}
+
 async function uploadFileToDrive(file){
   if(!isOnline()) throw new Error("Загрузка работает только в online-режиме (URL Apps Script в Настройках).");
   const folderUrl = (state.settings.mediaFolder||"").trim();
@@ -3348,6 +3425,26 @@ async function uploadFileToDrive(file){
 async function ingestFiles(files, postId, kind /* "cover"|"media" */, sufx, uploaderEl){
   files = Array.from(files||[]); if(!files.length) return;
   const p = state.posts[postId]; if(!p){ alert("Не нашёл пост"); return; }
+
+  // Подсказка про монтажный формат (ProRes/.mov/не-H.264) — до загрузки в Drive
+  const warnings = [];
+  for(const f of files){
+    const w = await inspectVideoForIG(f);
+    if(w) warnings.push(Object.assign({file:f}, w));
+  }
+  if(warnings.length){
+    const lines = warnings.map(w => "• " + w.file.name + ": " + w.reason).join("\n");
+    const fix = (warnings.find(w => !w.soft) || warnings[0]).fix;
+    const ok = confirm(
+      "⚠ Instagram может не принять эти файлы:\n\n" + lines + "\n\n" + fix +
+      "\n\nОК — загрузить как есть. Отмена — пропустить эти файлы (остальное загрузится)."
+    );
+    if(!ok){
+      files = files.filter(f => !warnings.some(w => w.file === f));
+      if(!files.length) return;
+    }
+  }
+
   const fieldName = kind + (sufx||"");
   const previewBoxId = (kind === "cover" ? "cover-preview-" : "media-preview-") + postId + (sufx||"");
   const previewBox = document.getElementById(previewBoxId);
