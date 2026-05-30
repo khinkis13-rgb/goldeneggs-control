@@ -302,6 +302,16 @@
   .add-media-btn{margin-top:8px;width:100%;border:1px dashed var(--line);background:transparent;color:var(--muted);padding:10px;text-align:center}
   .add-media-btn:hover{border-color:var(--gold-dim);color:var(--gold);background:rgba(230,184,100,.04)}
 
+  /* Вставить ссылку под зоной загрузки */
+  .link-add{margin-top:6px}
+  .link-add-toggle{border:none;background:transparent;color:var(--muted);font-size:12px;padding:4px 2px;cursor:pointer;font-family:inherit}
+  .link-add-toggle:hover{color:var(--gold)}
+  .link-add-row{display:flex;gap:8px;margin-top:6px;align-items:stretch}
+  .link-add-row[hidden]{display:none}
+  .link-add-input{flex:1;min-width:0;font-size:13px;padding:8px 10px}
+  .link-add-go{flex:0 0 auto;border:1px solid var(--gold-dim);background:rgba(230,184,100,.08);color:var(--gold);border-radius:10px;padding:8px 14px;cursor:pointer;font-family:inherit;font-weight:600}
+  .link-add-go:hover{background:var(--gold);color:#1b160c}
+
   /* ANYA focus mode */
   .anya-progress{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:14px}
   .anya-progress .progress{margin-top:8px}
@@ -1923,6 +1933,7 @@ function uploaderCover(postId, sufx, value, label){
       <div class="uploader-sub">или <b>нажмите чтобы выбрать</b> с компьютера · JPG / PNG / MP4 · до 50 МБ</div>
       ${UPLOADER_STATUS_HTML}
     </div>
+    ${linkAddBlock(postId, "cover", sufxAttr)}
   `;
 }
 function uploaderMedia(postId, sufx, value, label){
@@ -1936,6 +1947,21 @@ function uploaderMedia(postId, sufx, value, label){
       <div class="uploader-title">${items.length?"Добавить ещё":"Перетащите файлы сюда"}</div>
       <div class="uploader-sub">или <b>нажмите чтобы выбрать</b> · можно сразу несколько · до 50 МБ каждый</div>
       ${UPLOADER_STATUS_HTML}
+    </div>
+    ${linkAddBlock(postId, "media", sufxAttr)}
+  `;
+}
+
+/* Свёрнутый блок «вставить ссылку» под зоной загрузки */
+function linkAddBlock(postId, kind, sufxAttr){
+  const ph = "https://drive.google.com/file/d/…  или прямая ссылка на файл";
+  return `
+    <div class="link-add" data-link-kind="${kind}" data-link-post="${postId}|${sufxAttr||""}">
+      <button type="button" class="link-add-toggle">🔗 файл слишком большой? вставьте ссылку из Drive</button>
+      <div class="link-add-row" hidden>
+        <input type="url" class="link-add-input" placeholder="${ph}">
+        <button type="button" class="link-add-go">Добавить</button>
+      </div>
     </div>
   `;
 }
@@ -3387,6 +3413,68 @@ async function ingestFiles(files, postId, kind /* "cover"|"media" */, sufx, uplo
     if(uploaderEl) uploaderEl.classList.remove("uploading");
   }
 }
+
+/* Достаём осмысленное имя файла из ссылки (для подписи в превью) */
+function nameFromUrl(url){
+  try{
+    const u = new URL(String(url).split("#")[0]);
+    const seg = decodeURIComponent(u.pathname.split("/").filter(Boolean).pop() || "");
+    // у Drive путь вида /file/d/<id>/view — имя оттуда не достать, вернём пусто
+    if(/^(view|edit|preview|d|file|open)$/i.test(seg)) return "";
+    return /\.[a-z0-9]{2,4}$/i.test(seg) ? seg : "";
+  }catch(_){ return ""; }
+}
+
+/* Добавление медиа по ручной ссылке (для файлов > 50 МБ, загруженных в Drive вручную) */
+async function ingestLink(rawUrl, postId, kind /* "cover"|"media" */, sufx){
+  const url = String(rawUrl||"").trim();
+  if(!url) return;
+  if(!/^https?:\/\//i.test(url)){ alert("Нужна прямая ссылка, начинающаяся с http:// или https://"); return; }
+  const p = state.posts[postId]; if(!p){ alert("Не нашёл пост"); return; }
+  const fieldName = kind + (sufx||"");
+  const value = withMeta(url, nameFromUrl(url), 0);
+  if(kind === "cover"){
+    p[fieldName] = value;
+  } else {
+    const cur = (p[fieldName]||"").trim();
+    p[fieldName] = cur ? cur + "\n" + value : value;
+  }
+  saveState();
+  refreshPreviewImmediate(postId, kind, p[fieldName], sufx||"");
+  const ri = rowIndexOf(p); if(ri) pushField(ri, fieldName, p[fieldName], 0);
+  flash("Ссылка добавлена");
+  updateAnyaProgressLight();
+  if(state.activeTab === "anya" && state.anyaCurrentId === postId) renderAnya();
+}
+
+/* Раскрытие блока «вставить ссылку» + добавление по кнопке/Enter */
+document.addEventListener("click", e => {
+  const toggle = e.target.closest(".link-add-toggle");
+  if(toggle){
+    const row = toggle.parentElement.querySelector(".link-add-row");
+    if(row){ row.hidden = !row.hidden; if(!row.hidden){ const inp = row.querySelector(".link-add-input"); if(inp) inp.focus(); } }
+    return;
+  }
+  const go = e.target.closest(".link-add-go");
+  if(go){
+    const block = go.closest(".link-add"); if(!block) return;
+    const inp = block.querySelector(".link-add-input");
+    const [postId, sufx] = (block.getAttribute("data-link-post")||"").split("|");
+    const kind = block.getAttribute("data-link-kind");
+    ingestLink(inp ? inp.value : "", postId, kind, sufx||"");
+    if(inp) inp.value = "";
+  }
+});
+document.addEventListener("keydown", e => {
+  if(e.key !== "Enter") return;
+  const inp = e.target.closest(".link-add-input"); if(!inp) return;
+  e.preventDefault();
+  const block = inp.closest(".link-add"); if(!block) return;
+  const [postId, sufx] = (block.getAttribute("data-link-post")||"").split("|");
+  const kind = block.getAttribute("data-link-kind");
+  ingestLink(inp.value, postId, kind, sufx||"");
+  inp.value = "";
+});
 
 /* Немедленный (без debounce) refresh превью — нужен после загрузки, чтобы убрать ghost'ы.
    Одни и те же id могут встретиться в нескольких секциях (#sec-today / #sec-all / #sec-anya),
