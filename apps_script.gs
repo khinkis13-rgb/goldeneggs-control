@@ -70,7 +70,10 @@ const COLS = {
   text_vk:     { col: 29, header: 'Текст VK' },
   hashtags_vk: { col: 30, header: 'Хэштеги VK' },
   media_vk:    { col: 31, header: 'Медиа VK' },
-  cover_vk:    { col: 32, header: 'Обложка VK' }
+  cover_vk:    { col: 32, header: 'Обложка VK' },
+  // Instagram publish result (Этап 2.0)
+  ig_post_id:  { col: 33, header: 'IG post id' },
+  ig_permalink:{ col: 34, header: 'IG ссылка' }
 };
 
 /** Запустите один раз из редактора Apps Script — добавит недостающие заголовки. */
@@ -102,6 +105,8 @@ function initSheet() {
    'text_tt','hashtags_tt','media_tt','cover_tt',
    'text_yt','hashtags_yt','media_yt','cover_yt',
    'text_vk','hashtags_vk','media_vk','cover_vk'].forEach(f => sheet.setColumnWidth(COLS[f].col, 180));
+  sheet.setColumnWidth(COLS.ig_post_id.col, 160);
+  sheet.setColumnWidth(COLS.ig_permalink.col, 260);
   // Листы профилей и highlights — идемпотентно
   initProfilesSheet_();
   initHighlightsSheet_();
@@ -280,6 +285,10 @@ function handle_(payload) {
       const r = deletePost_(payload.rowIndex);
       return json_({ ok: true, deleted: r });
     }
+    if (payload.action === 'publishInstagram') {
+      const r = publishInstagram_(payload);
+      return json_({ ok: true, igPostId: r.igPostId, permalink: r.permalink });
+    }
     if (payload.action === 'upload') {
       const r = uploadFile_(payload);
       return json_({ ok: true, url: r.url, fileId: r.fileId, name: r.name });
@@ -343,7 +352,9 @@ function readAll_() {
       owner: String(row[COLS.owner.col - 1] || ''),
       checks: checks,
       notes: String(row[COLS.notes.col - 1] || ''),
-      platforms: String(row[COLS.platforms.col - 1] || '')
+      platforms: String(row[COLS.platforms.col - 1] || ''),
+      ig_post_id: String(row[COLS.ig_post_id.col - 1] || ''),
+      ig_permalink: String(row[COLS.ig_permalink.col - 1] || '')
     };
     // Override-поля по платформам
     ['fb','tg','tt','yt','vk'].forEach(function(s) {
@@ -709,6 +720,137 @@ function igProps_() {
  */
 function driveDirectUrl_(fileId, px) {
   return 'https://lh3.googleusercontent.com/d/' + fileId + '=w' + (px || 1440);
+}
+
+/**
+ * Один вызов Graph API (POST). Разбирает ответ Meta и кидает читаемую ошибку.
+ */
+function igGraphPost_(url, payload) {
+  const resp = UrlFetchApp.fetch(url, { method: 'post', muteHttpExceptions: true, payload: payload });
+  const code = resp.getResponseCode();
+  const text = resp.getContentText();
+  let data = {};
+  try { data = JSON.parse(text); } catch (_) {}
+  if (code !== 200 || data.error) {
+    const e = data.error || {};
+    const parts = [];
+    if (e.message) parts.push(e.message);
+    if (e.error_user_msg) parts.push(e.error_user_msg);
+    if (!parts.length) parts.push('HTTP ' + code);
+    let msg = parts.join(' — ');
+    if (e.code) msg += ' (code ' + e.code + (e.error_subcode ? '/' + e.error_subcode : '') + ')';
+    throw new Error('Instagram: ' + msg);
+  }
+  return data;
+}
+
+/** Создаёт media-контейнер для одного фото. Возвращает creation_id. */
+function igCreateImageContainer_(creds, imageUrl, caption, isCarouselItem) {
+  const payload = { image_url: imageUrl, access_token: creds.token };
+  if (caption) payload.caption = caption;
+  if (isCarouselItem) payload.is_carousel_item = 'true';
+  const data = igGraphPost_(GRAPH_BASE + GRAPH_VERSION + '/' + creds.igUserId + '/media', payload);
+  if (!data.id) throw new Error('Instagram: контейнер создан без id');
+  return data.id;
+}
+
+/** Собирает контейнер карусели из готовых дочерних id. Возвращает creation_id. */
+function igCreateCarouselContainer_(creds, childIds, caption) {
+  const payload = {
+    media_type: 'CAROUSEL',
+    children: childIds.join(','),
+    access_token: creds.token
+  };
+  if (caption) payload.caption = caption;
+  const data = igGraphPost_(GRAPH_BASE + GRAPH_VERSION + '/' + creds.igUserId + '/media', payload);
+  if (!data.id) throw new Error('Instagram: контейнер карусели создан без id');
+  return data.id;
+}
+
+/** Публикует готовый контейнер. Возвращает id опубликованного медиа. */
+function igPublishContainer_(creds, creationId) {
+  const data = igGraphPost_(GRAPH_BASE + GRAPH_VERSION + '/' + creds.igUserId + '/media_publish', {
+    creation_id: creationId,
+    access_token: creds.token
+  });
+  if (!data.id) throw new Error('Instagram: публикация без id');
+  return data.id;
+}
+
+/** Тянет permalink опубликованного поста. Не критично — при ошибке вернёт ''. */
+function igPermalink_(creds, mediaId) {
+  try {
+    const url = GRAPH_BASE + GRAPH_VERSION + '/' + mediaId +
+      '?fields=permalink&access_token=' + encodeURIComponent(creds.token);
+    const resp = UrlFetchApp.fetch(url, { method: 'get', muteHttpExceptions: true });
+    const data = JSON.parse(resp.getContentText());
+    return data.permalink || '';
+  } catch (_) {
+    return '';
+  }
+}
+
+/**
+ * Фаза 2 — публикация поста в Instagram по запросу из пульта.
+ * payload: { rowIndex, caption, mediaUrls[] }.
+ *  - mediaUrls/caption приходят с фронта (то, что видно в превью). Если их нет —
+ *    fallback: берём из строки листа (медиа + текст + хэштеги базовых IG-колонок).
+ *  - 1 фото → контейнер → media_publish; 2+ → дочерние контейнеры → CAROUSEL → publish.
+ * После успеха пишет в строку: статус published, ig_post_id, ig_permalink.
+ * Возвращает { igPostId, permalink }.
+ */
+function publishInstagram_(payload) {
+  const creds = igProps_();
+  const rowIndex = payload.rowIndex;
+  let urls = payload.mediaUrls;
+  let caption = payload.caption;
+
+  // Fallback из строки листа, если фронт не передал
+  if ((!urls || !urls.length) && rowIndex) {
+    const sheet = getSheet_();
+    const mediaCell = String(sheet.getRange(rowIndex, COLS.media.col).getValue() || '');
+    urls = mediaCell.split(/\n+/);
+    if (caption === undefined || caption === null) {
+      const txt = String(sheet.getRange(rowIndex, COLS.text.col).getValue() || '').trim();
+      const tags = String(sheet.getRange(rowIndex, COLS.hashtags.col).getValue() || '').trim();
+      caption = txt + (tags ? '\n\n' + tags : '');
+    }
+  }
+  caption = String(caption || '');
+
+  // Чистим URL (убираем #-метаданные имени/размера) и строим прямые ссылки для Meta
+  const imageUrls = (urls || [])
+    .map(function (u) { return String(u || '').split('#')[0].trim(); })
+    .filter(Boolean)
+    .map(function (u) {
+      const id = extractDriveId_(u);
+      return id ? driveDirectUrl_(id, 1440) : u;
+    });
+
+  if (!imageUrls.length) throw new Error('Нет картинок для публикации.');
+
+  let creationId;
+  if (imageUrls.length === 1) {
+    creationId = igCreateImageContainer_(creds, imageUrls[0], caption, false);
+  } else {
+    const children = imageUrls.map(function (url) {
+      return igCreateImageContainer_(creds, url, '', true);
+    });
+    creationId = igCreateCarouselContainer_(creds, children, caption);
+  }
+
+  const igPostId = igPublishContainer_(creds, creationId);
+  const permalink = igPermalink_(creds, igPostId);
+
+  // Запись результата в строку
+  if (rowIndex) {
+    const sheet = getSheet_();
+    sheet.getRange(rowIndex, COLS.status.col).setValue('published');
+    sheet.getRange(rowIndex, COLS.ig_post_id.col).setValue(igPostId);
+    if (permalink) sheet.getRange(rowIndex, COLS.ig_permalink.col).setValue(permalink);
+  }
+
+  return { igPostId: igPostId, permalink: permalink };
 }
 
 /**

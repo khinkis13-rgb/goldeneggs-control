@@ -164,6 +164,15 @@
   .pm-footer{display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-top:1px solid var(--line);padding-top:14px}
   .pm-footer .spacer{flex:1}
   .btn.big{padding:11px 18px;font-size:15px}
+  .pm-ig-publish-row{border-top:1px solid var(--line);padding-top:14px;margin-top:4px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .pm-ig-publish-row .field-hint{flex-basis:100%;margin:0}
+  .pm-ig-status{margin-top:10px}
+  .pm-ig-confirm-box,.pm-ig-loading,.pm-ig-ok,.pm-ig-err{border-radius:10px;padding:12px 14px;font-size:14px;line-height:1.5}
+  .pm-ig-confirm-box{background:var(--bg2);border:1px solid var(--gold)}
+  .pm-ig-loading{background:var(--bg2);border:1px solid var(--line)}
+  .pm-ig-ok{background:rgba(60,160,90,.14);border:1px solid #3ca05a}
+  .pm-ig-ok a{color:var(--gold);font-weight:600}
+  .pm-ig-err{background:rgba(200,74,58,.14);border:1px solid #c84a3a}
   @media (max-width:720px){
     .pm-grid{grid-template-columns:1fr}
     .pm-text-area{min-height:180px}
@@ -1582,6 +1591,86 @@ async function downloadMediaZip(p, plat, btn){
     btn.textContent = originalText;
   }
 }
+/* ===== АВТОПУБЛИКАЦИЯ В INSTAGRAM (Этап 2.0) ===== */
+let igPublishInFlight = false; // защита от двойной публикации
+const IG_VIDEO_RE = /\.(mp4|mov|m4v|webm|avi|mkv)(\?|#|$)/i;
+function igPublishClearStatus(){
+  const box = $("#pmIgStatus");
+  if(box){ box.style.display="none"; box.innerHTML=""; }
+}
+function igPublishConfirm(id){
+  if(igPublishInFlight) return; // идёт публикация — не открываем второй раз
+  const p = state.posts[id]; if(!p) return;
+  const box = $("#pmIgStatus"); if(!box) return;
+  if(!isOnline()){
+    box.style.display="block";
+    box.innerHTML = `<div class="pm-ig-err">⚠ Сначала подключите бэкенд в Настройках.</div>`;
+    return;
+  }
+  const c = contentForPlatform(p, "Instagram");
+  const items = parseMediaList(c.media);
+  const urls = items.map(it=>it.url).filter(Boolean);
+  box.style.display="block";
+  if(!urls.length){
+    box.innerHTML = `<div class="pm-ig-err">⚠ Нет картинок для публикации. Пусть Аня прикрепит медиа в карточке поста.</div>`;
+    return;
+  }
+  if(items.some(it => IG_VIDEO_RE.test(it.name||"") || IG_VIDEO_RE.test(it.url||""))){
+    box.innerHTML = `<div class="pm-ig-err">🎬 Похоже, это видео/Reels. Автопубликация видео пока не поддержана — опубликуйте вручную кнопками ниже.</div>`;
+    return;
+  }
+  if(urls.length>10){
+    box.innerHTML = `<div class="pm-ig-err">⚠ В карусели Instagram максимум 10 фото, а здесь ${urls.length}. Уберите лишние в карточке поста или опубликуйте вручную.</div>`;
+    return;
+  }
+  const kind = urls.length>1 ? `карусель из ${urls.length} фото` : `1 фото`;
+  box.innerHTML = `
+    <div class="pm-ig-confirm-box">
+      <div>Опубликовать <b>${escape(kind)}</b> в Instagram <b>прямо сейчас</b>? Пост появится в аккаунте сразу.</div>
+      <div class="row" style="gap:8px;margin-top:10px">
+        <button class="btn primary pm-ig-confirm" data-id="${id}">✓ Подтвердить публикацию</button>
+        <button class="btn pm-ig-cancel">Отмена</button>
+      </div>
+    </div>`;
+}
+async function igPublishNow(id, btn){
+  if(igPublishInFlight) return; // уже публикуется — игнор повторного клика
+  const p = state.posts[id]; if(!p) return;
+  const box = $("#pmIgStatus");
+  const c = contentForPlatform(p, "Instagram");
+  const mediaUrls = parseMediaList(c.media).map(it=>String(it.url).split("#")[0]).filter(Boolean);
+  if(!mediaUrls.length){
+    if(box){ box.style.display="block"; box.innerHTML = `<div class="pm-ig-err">⚠ Нет картинок для публикации.</div>`; }
+    return;
+  }
+  const caption = buildFullTextFor(p, "Instagram");
+  const ri = rowIndexOf(p);
+  igPublishInFlight = true;
+  if(btn){ btn.disabled = true; }
+  if(box){
+    box.style.display="block";
+    box.innerHTML = `<div class="pm-ig-loading">⏳ Публикуется в Instagram…${mediaUrls.length>1?` (карусель из ${mediaUrls.length} фото — может занять до минуты)`:""}</div>`;
+  }
+  try{
+    const res = await api({ action:"publishInstagram", rowIndex: ri, caption: caption, mediaUrls: mediaUrls });
+    p.status = "published";
+    if(res.permalink) p.ig_permalink = res.permalink;
+    if(res.igPostId) p.ig_post_id = res.igPostId;
+    saveState();
+    if(box){
+      box.innerHTML = `<div class="pm-ig-ok">✅ Опубликовано в Instagram!${res.permalink?` <a href="${escape(res.permalink)}" target="_blank" rel="noopener">Открыть пост ↗</a>`:""}</div>`;
+    }
+    flash("Опубликовано в Instagram");
+    render();
+  }catch(err){
+    if(btn){ btn.disabled = false; }
+    if(box){
+      box.innerHTML = `<div class="pm-ig-err">❌ Не удалось опубликовать: ${escape(err && err.message || err)}<br><span class="small">Можно опубликовать вручную — кнопки ниже остаются рабочими.</span></div>`;
+    }
+  }finally{
+    igPublishInFlight = false;
+  }
+}
 function openPublishModal(postId, platformHint){
   const p = state.posts[postId];
   if(!p) return;
@@ -1671,6 +1760,15 @@ function renderPublishModal(p, plat){
         ${noMedia}
       </div>
     </div>
+
+    ${plat==="Instagram" ? `
+    <div class="pm-ig-publish-row">
+      <button class="btn big primary pm-ig-publish" data-id="${p.id}">🚀 Опубликовать в Instagram сейчас</button>
+      ${p.ig_permalink?`<a class="btn" href="${escape(p.ig_permalink)}" target="_blank" rel="noopener">↗ Открыть опубликованный пост</a>`:""}
+      <div class="field-hint">Автопубликация через Instagram API. Если что-то пойдёт не так — остаётся ручной режим ниже.</div>
+    </div>
+    <div id="pmIgStatus" class="pm-ig-status" style="display:none"></div>
+    ` : ""}
 
     <div class="pm-footer">
       <a class="btn big" href="${action.create||"#"}" target="_blank" rel="noopener">↗ ${action.open||"Открыть площадку"}</a>
@@ -2628,6 +2726,12 @@ document.addEventListener("click", e => {
   } else if(t.matches(".pm-download-zip")){
     const p = state.posts[t.dataset.id]; if(!p) return;
     downloadMediaZip(p, t.dataset.platform || "Instagram", t);
+  } else if(t.matches(".pm-ig-publish")){
+    igPublishConfirm(t.dataset.id);
+  } else if(t.matches(".pm-ig-confirm")){
+    igPublishNow(t.dataset.id, t);
+  } else if(t.matches(".pm-ig-cancel")){
+    igPublishClearStatus();
   } else if(t.matches("[data-close-pm]")){
     closePublishModal();
   } else if(t.matches("[data-mark-published]")){
