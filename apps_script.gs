@@ -110,7 +110,14 @@ function initSheet() {
   // Листы профилей и highlights — идемпотентно
   initProfilesSheet_();
   initHighlightsSheet_();
-  SpreadsheetApp.getUi().alert('Готово. Колонки на месте. Листы «профили» и «highlights» созданы. Можно запускать seedPosts() или подключать пульт.');
+  // Поп-ап только если есть UI-контекст (из меню таблицы). При запуске из
+  // редактора Apps Script getUi() недоступен — тогда просто пишем в журнал.
+  const doneMsg = 'Готово. Колонки на месте. Листы «профили» и «highlights» созданы. Можно запускать seedPosts() или подключать пульт.';
+  try {
+    SpreadsheetApp.getUi().alert(doneMsg);
+  } catch (_) {
+    Logger.log(doneMsg);
+  }
 }
 
 // ===== Профили (вкладка «Страницы») =====
