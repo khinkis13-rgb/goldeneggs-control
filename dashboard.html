@@ -1632,31 +1632,15 @@ function igPublishConfirm(id){
     box.innerHTML = `<div class="pm-ig-err">⚠ Нет картинок для публикации. Пусть Аня прикрепит медиа в карточке поста.</div>`;
     return;
   }
-  const isVideo = it => IG_VIDEO_RE.test(it.name||"") || IG_VIDEO_RE.test(it.url||"");
-  const videoItems = items.filter(isVideo);
-  if(videoItems.length){
-    if(items.length>1){
-      box.innerHTML = `<div class="pm-ig-err">🎬 Для Reels оставьте в «Медиа» <b>один видеофайл</b> (сейчас ${items.length}). Карусели с видео и микс «видео + фото» пока не поддержаны — уберите лишнее или опубликуйте вручную.</div>`;
-      return;
-    }
-    box.innerHTML = `
-      <div class="pm-ig-confirm-box">
-        <div>Опубликовать <b>🎬 Reels</b> в Instagram <b>прямо сейчас</b>? Видео появится в аккаунте после обработки (до ~1 минуты).</div>
-        <div class="row" style="gap:8px;margin-top:10px">
-          <button class="btn primary pm-ig-confirm" data-id="${id}">✓ Подтвердить публикацию</button>
-          <button class="btn pm-ig-cancel">Отмена</button>
-        </div>
-      </div>`;
-    return;
-  }
   if(urls.length>10){
-    box.innerHTML = `<div class="pm-ig-err">⚠ В карусели Instagram максимум 10 фото, а здесь ${urls.length}. Уберите лишние в карточке поста или опубликуйте вручную.</div>`;
+    box.innerHTML = `<div class="pm-ig-err">⚠ В карусели Instagram максимум 10 файлов, а здесь ${urls.length}. Уберите лишние в карточке поста или опубликуйте вручную.</div>`;
     return;
   }
-  const kind = urls.length>1 ? `карусель из ${urls.length} фото` : `1 фото`;
+  // Тип (фото/карусель/Reels) надёжно определяет бэкенд по Drive MIME — фронт не угадывает.
+  const kind = urls.length>1 ? `${urls.length} файлов` : `медиа`;
   box.innerHTML = `
     <div class="pm-ig-confirm-box">
-      <div>Опубликовать <b>${escape(kind)}</b> в Instagram <b>прямо сейчас</b>? Пост появится в аккаунте сразу.</div>
+      <div>Опубликовать <b>${escape(kind)}</b> в Instagram <b>прямо сейчас</b>? Фото появится сразу; если это видео — оформится как Reels после обработки (до ~1 минуты).</div>
       <div class="row" style="gap:8px;margin-top:10px">
         <button class="btn primary pm-ig-confirm" data-id="${id}">✓ Подтвердить публикацию</button>
         <button class="btn pm-ig-cancel">Отмена</button>
@@ -1674,22 +1658,17 @@ async function igPublishNow(id, btn){
     if(box){ box.style.display="block"; box.innerHTML = `<div class="pm-ig-err">⚠ Нет медиа для публикации.</div>`; }
     return;
   }
-  const isVideo = it => IG_VIDEO_RE.test(it.name||"") || IG_VIDEO_RE.test(it.url||"");
-  const isReels = items.length===1 && isVideo(items[0]);
   const caption = buildFullTextFor(p, "Instagram");
   const ri = rowIndexOf(p);
   igPublishInFlight = true;
   if(btn){ btn.disabled = true; }
   if(box){
     box.style.display="block";
-    box.innerHTML = isReels
-      ? `<div class="pm-ig-loading">⏳ Видео обрабатывается Instagram — это может занять до минуты, не закрывайте окно…</div>`
-      : `<div class="pm-ig-loading">⏳ Публикуется в Instagram…${mediaUrls.length>1?` (карусель из ${mediaUrls.length} фото — может занять до минуты)`:""}</div>`;
+    box.innerHTML = `<div class="pm-ig-loading">⏳ Публикуется в Instagram… Если это видео (Reels) — обработка до минуты, не закрывайте окно.</div>`;
   }
   try{
-    const res = isReels
-      ? await api({ action:"publishInstagramReels", rowIndex: ri, caption: caption, videoUrl: mediaUrls[0] })
-      : await api({ action:"publishInstagram", rowIndex: ri, caption: caption, mediaUrls: mediaUrls });
+    // Бэкенд сам определит по Drive MIME: фото, карусель или Reels.
+    const res = await api({ action:"publishInstagram", rowIndex: ri, caption: caption, mediaUrls: mediaUrls });
     p.status = "published";
     if(res.permalink) p.ig_permalink = res.permalink;
     if(res.igPostId) p.ig_post_id = res.igPostId;

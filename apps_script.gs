@@ -829,16 +829,24 @@ function publishInstagram_(payload) {
   }
   caption = String(caption || '');
 
-  // Чистим URL (убираем #-метаданные имени/размера) и строим прямые ссылки для Meta
-  const imageUrls = (urls || [])
+  // Чистим URL (убираем #-метаданные имени/размера)
+  const cleaned = (urls || [])
     .map(function (u) { return String(u || '').split('#')[0].trim(); })
-    .filter(Boolean)
-    .map(function (u) {
-      const id = extractDriveId_(u);
-      return id ? driveDirectUrl_(id, 1440) : u;
-    });
+    .filter(Boolean);
+  if (!cleaned.length) throw new Error('Нет медиа для публикации.');
 
-  if (!imageUrls.length) throw new Error('Нет картинок для публикации.');
+  // Тип файла определяем по Drive MIME (надёжно для ссылок без расширения).
+  const videoCount = cleaned.filter(igIsDriveVideo_).length;
+  if (videoCount) {
+    if (cleaned.length === 1) return igDoReels_(creds, cleaned[0], caption, rowIndex);
+    throw new Error('Видео публикуется только по одному (как Reels). Оставьте в «Медиа» один видеофайл или только фото.');
+  }
+
+  // Фото/карусель: строим прямые ссылки на полноразмерные картинки
+  const imageUrls = cleaned.map(function (u) {
+    const id = extractDriveId_(u);
+    return id ? driveDirectUrl_(id, 1440) : u;
+  });
 
   let creationId;
   if (imageUrls.length === 1) {
@@ -862,6 +870,22 @@ function publishInstagram_(payload) {
   }
 
   return { igPostId: igPostId, permalink: permalink };
+}
+
+/**
+ * Видео это или картинка. Сначала спрашиваем у Google Drive реальный MIME-тип
+ * (надёжно для ссылок без расширения), при недоступности — фолбэк по расширению.
+ */
+function igIsDriveVideo_(cleanUrl) {
+  const id = extractDriveId_(cleanUrl);
+  if (id) {
+    try {
+      const mime = DriveApp.getFileById(id).getMimeType() || '';
+      if (mime.indexOf('video/') === 0) return true;
+      if (mime.indexOf('image/') === 0) return false;
+    } catch (_) {}
+  }
+  return /\.(mp4|mov|m4v|webm|avi|mkv)(\?|#|$)/i.test(cleanUrl);
 }
 
 /** Создаёт REELS-контейнер для одного видео. Возвращает creation_id. */
@@ -922,12 +946,19 @@ function publishInstagramReels_(payload) {
     }
   }
   caption = String(caption || '');
-
-  // Чистим URL (убираем #-метаданные) и строим прямую ссылку для Meta
   const clean = String(videoUrl || '').split('#')[0].trim();
   if (!clean) throw new Error('Нет видео для публикации.');
-  const id = extractDriveId_(clean);
-  const directUrl = id ? driveVideoUrl_(id) : clean;
+  return igDoReels_(creds, clean, caption, rowIndex);
+}
+
+/**
+ * Ядро публикации Reels: чистый URL видео → REELS-контейнер → ожидание
+ * готовности → media_publish → permalink → запись результата в строку.
+ * Переиспользуется и явным action, и авто-детектом в publishInstagram_.
+ */
+function igDoReels_(creds, cleanVideoUrl, caption, rowIndex) {
+  const id = extractDriveId_(cleanVideoUrl);
+  const directUrl = id ? driveVideoUrl_(id) : cleanVideoUrl;
 
   const creationId = igCreateReelsContainer_(creds, directUrl, caption);
   igWaitContainerReady_(creds, creationId);
