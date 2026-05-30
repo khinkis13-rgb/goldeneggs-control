@@ -963,6 +963,17 @@ function publishInstagramReels_(payload) {
  */
 function igDoReels_(creds, cleanVideoUrl, caption, rowIndex) {
   const id = extractDriveId_(cleanVideoUrl);
+
+  // Файлы >100 МБ Drive не отдаёт напрямую (заглушка антивируса) — Meta качает
+  // не видео, а HTML, и валится с 2207082. Ловим заранее с понятным текстом.
+  if (id) {
+    let sizeMb = 0;
+    try { sizeMb = DriveApp.getFileById(id).getSize() / (1024 * 1024); } catch (_) {}
+    if (sizeMb > 100) {
+      throw new Error('Видео ' + Math.round(sizeMb) + ' МБ — больше 100 МБ Google Drive не отдаёт напрямую, и Instagram не может его скачать. Сожмите видео до <100 МБ (например, экспортом в 1080p) и замените файл.');
+    }
+  }
+
   const directUrl = id ? driveVideoUrl_(id) : cleanVideoUrl;
 
   // Создание + обработка с одним авто-повтором на временный сбой Instagram
@@ -1055,11 +1066,11 @@ function testIgContainer() {
 /**
  * Прямая ссылка на ВИДЕО Google Drive — для Meta Reels.
  * Картиночный трюк lh3.googleusercontent.com/d/ID видео не отдаёт.
- * Вариант A (Фаза 0): прямое скачивание Drive. Для файлов до ~100 МБ Drive
- * отдаёт байты; для больших — HTML-заглушку антивируса (Meta не распарсит).
+ * Форма drive.usercontent.google.com + confirm=t отдаёт байты без редиректа
+ * и без заглушки антивируса для файлов до ~100 МБ (надёжнее, чем uc?export).
  */
 function driveVideoUrl_(fileId) {
-  return 'https://drive.google.com/uc?export=download&id=' + fileId;
+  return 'https://drive.usercontent.google.com/download?id=' + fileId + '&export=download&confirm=t';
 }
 
 /**
