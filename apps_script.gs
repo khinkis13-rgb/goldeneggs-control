@@ -29,7 +29,31 @@ const PLATFORMS_ALL = ['Instagram','Facebook','Telegram','TikTok','YouTube','VK'
 
 // PIN-код для доступа к пульту. Замените на свой и переразверните Web App.
 // Любой запрос без правильного PIN получит {ok:false, code:'PIN_REQUIRED'}.
+// PIN = мастер-доступ нашего дашборда (все аккаунты). Команды Фабрики ходят по
+// API-ключам (Script Property API_KEYS, см. readApiKeys_ / authContext_).
 const APP_PIN = '1405';
+
+// ===== Реестр аккаунтов (мультиаккаунт, план 2026-06-18) =====
+// Один System User токен (Script Property IG_ACCESS_TOKEN) публикует во много
+// IG-аккаунтов — отличается только ig_user_id. Реестр живёт в листе «аккаунты»,
+// чтобы его можно было править без кода.
+const ACCOUNTS_SHEET = 'аккаунты';
+const ACCOUNTS_HEADER_ROW = 1;
+const ACCOUNTS_FIRST_DATA_ROW = 2;
+// account_id аккаунта по умолчанию = текущий goldeneggs. Запросы без account_id
+// (старый дашборд) маршрутизируются на него.
+const DEFAULT_ACCOUNT_ID = 'goldeneggs';
+
+// Колонки листа «аккаунты». Имена и порядок зафиксированы — их использует
+// docs-агент и runbook онбординга, не переименовывать.
+const ACCOUNT_COLS = {
+  account_id:  { col: 1, header: 'account_id' },
+  label:       { col: 2, header: 'label' },
+  ig_user_id:  { col: 3, header: 'ig_user_id' },
+  fb_page_id:  { col: 4, header: 'fb_page_id' },
+  team:        { col: 5, header: 'команда' },
+  status:      { col: 6, header: 'статус' }
+};
 
 // Карта колонок (1-based). При initSheet() недостающие создаются автоматически.
 // Base-поля = Instagram (главная платформа). Для FB/TG/TT/YT/VK — override-блоки.
@@ -85,7 +109,10 @@ const COLS = {
   // Планировщик автопубликаций (2026-05-30)
   sched_attempts:   { col: 42, header: 'План: попыток' },
   sched_error:      { col: 43, header: 'План: ошибка' },
-  sched_payload:    { col: 44, header: 'План: снимок (JSON)' }
+  sched_payload:    { col: 44, header: 'План: снимок (JSON)' },
+  // Мультиаккаунт (2026-06-18): в какой аккаунт публикуется строка.
+  // Пусто = DEFAULT_ACCOUNT_ID (goldeneggs), обратная совместимость.
+  account_id:       { col: 45, header: 'account_id' }
 };
 
 /** Запустите один раз из редактора Apps Script — добавит недостающие заголовки. */
@@ -121,11 +148,14 @@ function initSheet() {
   sheet.setColumnWidth(COLS.ig_permalink.col, 260);
   // Доп-опции IG и планировщик — узкие служебные колонки
   ['ig_first_comment','ig_collaborators','ig_location_id','ig_location_name',
-   'ig_user_tags','ig_alt_text','ig_share_to_feed','sched_attempts','sched_error','sched_payload']
+   'ig_user_tags','ig_alt_text','ig_share_to_feed','sched_attempts','sched_error','sched_payload',
+   'account_id']
     .forEach(f => sheet.setColumnWidth(COLS[f].col, 160));
   // Листы профилей и highlights — идемпотентно
   initProfilesSheet_();
   initHighlightsSheet_();
+  // Реестр аккаунтов (мультиаккаунт) — идемпотентно, засеет дефолтный goldeneggs
+  initAccountsSheet_();
   // Триггер автопубликации по расписанию (идемпотентно).
   // Если авторизация триггеров ещё не выдана — не валим initSheet, просто сообщим.
   let trigMsg = ' Триггер автопубликации поставлен (раз в 5 мин).';
@@ -226,6 +256,177 @@ function initHighlightsSheet_() {
   sheet.setColumnWidth(HIGHLIGHT_COLS.updated_at.col, 140);
 }
 
+// ===== Реестр аккаунтов: инициализатор и чтение =====
+
+/**
+ * Запустите один раз из редактора Apps Script — создаёт лист «аккаунты»
+ * и засевает строку аккаунта по умолчанию (goldeneggs) с текущим IG_USER_ID.
+ * Идемпотентно: повторный запуск не дублирует строку и не затирает данные.
+ */
+function initAccountsSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(ACCOUNTS_SHEET);
+  if (!sheet) sheet = ss.insertSheet(ACCOUNTS_SHEET);
+  Object.values(ACCOUNT_COLS).forEach(function (c) {
+    const cell = sheet.getRange(ACCOUNTS_HEADER_ROW, c.col);
+    if (!cell.getValue()) cell.setValue(c.header);
+  });
+  sheet.getRange(ACCOUNTS_HEADER_ROW, 1, 1, Object.keys(ACCOUNT_COLS).length).setFontWeight('bold');
+  sheet.setFrozenRows(ACCOUNTS_HEADER_ROW);
+  sheet.setColumnWidth(ACCOUNT_COLS.account_id.col, 140);
+  sheet.setColumnWidth(ACCOUNT_COLS.label.col, 160);
+  sheet.setColumnWidth(ACCOUNT_COLS.ig_user_id.col, 200);
+  sheet.setColumnWidth(ACCOUNT_COLS.fb_page_id.col, 200);
+  sheet.setColumnWidth(ACCOUNT_COLS.team.col, 140);
+  sheet.setColumnWidth(ACCOUNT_COLS.status.col, 100);
+
+  // Засеваем дефолтный аккаунт, только если его ещё нет.
+  const have = readAccounts_().some(function (a) { return a.account_id === DEFAULT_ACCOUNT_ID; });
+  if (!have) {
+    const igUserId = PropertiesService.getScriptProperties().getProperty('IG_USER_ID') || '';
+    const lastCol = Object.keys(ACCOUNT_COLS).length;
+    const row = new Array(lastCol).fill('');
+    row[ACCOUNT_COLS.account_id.col - 1] = DEFAULT_ACCOUNT_ID;
+    row[ACCOUNT_COLS.label.col - 1]      = 'GoldenEggs';
+    row[ACCOUNT_COLS.ig_user_id.col - 1] = igUserId;
+    row[ACCOUNT_COLS.status.col - 1]     = 'active';
+    const nextRow = Math.max(sheet.getLastRow() + 1, ACCOUNTS_FIRST_DATA_ROW);
+    sheet.getRange(nextRow, 1, 1, lastCol).setValues([row]);
+  }
+  const doneMsg = 'Лист «' + ACCOUNTS_SHEET + '» готов. Аккаунт по умолчанию «' +
+    DEFAULT_ACCOUNT_ID + '» засеян (ig_user_id из IG_USER_ID).';
+  try { SpreadsheetApp.getUi().alert(doneMsg); } catch (_) { Logger.log(doneMsg); }
+}
+
+/**
+ * Возвращает массив объектов аккаунтов из листа «аккаунты».
+ * Ключи: {account_id, label, ig_user_id, fb_page_id, команда, статус}.
+ * Если листа нет — пустой массив (резолв тогда упадёт на фолбэк IG_USER_ID).
+ */
+function readAccounts_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(ACCOUNTS_SHEET);
+  if (!sheet) return [];
+  const lastRow = sheet.getLastRow();
+  if (lastRow < ACCOUNTS_FIRST_DATA_ROW) return [];
+  const lastCol = Object.keys(ACCOUNT_COLS).length;
+  const values = sheet.getRange(ACCOUNTS_FIRST_DATA_ROW, 1, lastRow - ACCOUNTS_FIRST_DATA_ROW + 1, lastCol).getValues();
+  const out = [];
+  values.forEach(function (row) {
+    const id = String(row[ACCOUNT_COLS.account_id.col - 1] || '').trim();
+    if (!id) return;
+    out.push({
+      account_id:  id,
+      label:       String(row[ACCOUNT_COLS.label.col - 1] || ''),
+      ig_user_id:  String(row[ACCOUNT_COLS.ig_user_id.col - 1] || '').trim(),
+      fb_page_id:  String(row[ACCOUNT_COLS.fb_page_id.col - 1] || '').trim(),
+      'команда':   String(row[ACCOUNT_COLS.team.col - 1] || ''),
+      'статус':    String(row[ACCOUNT_COLS.status.col - 1] || '').trim()
+    });
+  });
+  return out;
+}
+
+// ===== Мультитенантная авторизация (API-ключи команд, план 2026-06-18) =====
+
+// Дефолтный белый список действий для командного ключа (когда в записи ключа
+// нет поля actions). Узкий намеренно: чтение нашего листа «инст» (read /
+// readProfiles) сюда НЕ входит, чтобы чужая команда не видела наш контент.
+// Расширяется точечно через поле actions в записи ключа (см. readApiKeys_).
+const DEFAULT_KEY_ACTIONS = ['upload', 'publishNow', 'ping'];
+
+/**
+ * Читает реестр API-ключей из Script Property API_KEYS.
+ * Формат записи ключа:
+ *   { "team": "...", "accounts": ["id1","id2"] | "*", "actions": ["upload",...] | "*" }
+ *  - accounts — массив account_id или строка "*" (все аккаунты);
+ *  - actions  — необязательный белый список действий (массив строк).
+ *               Спец-значение ["*"] или "*" = все действия (доверенная интеграция).
+ *               Если поле опущено — командному ключу доступен только дефолтный
+ *               узкий набор DEFAULT_KEY_ACTIONS: upload / publishNow / ping.
+ * Пример (одной строкой, как хранится в Script Property API_KEYS):
+ *   {"key_factory_a":{"team":"FactoryA","accounts":["acc_a"]},
+ *    "key_admin":{"team":"admin","accounts":"*","actions":["*"]}}
+ * Если свойства нет или оно битое — пустой объект (тогда ключи не работают,
+ * но мастер-PIN продолжает работать).
+ */
+function readApiKeys_() {
+  const raw = PropertiesService.getScriptProperties().getProperty('API_KEYS');
+  if (!raw) return {};
+  try {
+    const obj = JSON.parse(raw);
+    return (obj && typeof obj === 'object') ? obj : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+/**
+ * Разбирает payload в контекст авторизации.
+ *  - мастер (наш дашборд) по APP_PIN: { master:true, accounts:'*', actions:'*' };
+ *  - команда по apiKey из API_KEYS:
+ *      { master:false, team, accounts:[...] | '*', actions:[...] | '*' },
+ *    где actions — белый список действий: либо явный из записи ключа, либо
+ *    дефолтный DEFAULT_KEY_ACTIONS; спец-значение "*" = все действия.
+ *  - иначе null (отказ).
+ */
+function authContext_(payload) {
+  if (payload.pin && payload.pin === APP_PIN) {
+    return { master: true, team: 'master', accounts: '*', actions: '*' };
+  }
+  if (payload.apiKey) {
+    const keys = readApiKeys_();
+    const entry = keys[payload.apiKey];
+    if (entry) {
+      // actions: явный список из записи ключа, иначе дефолтный узкий набор.
+      // "*" (строкой или ["*"]) = все действия для доверенной интеграции.
+      let actions;
+      if (entry.actions === '*' ||
+          (Array.isArray(entry.actions) && entry.actions.indexOf('*') !== -1)) {
+        actions = '*';
+      } else if (Array.isArray(entry.actions)) {
+        actions = entry.actions.map(function (a) { return String(a); });
+      } else {
+        actions = DEFAULT_KEY_ACTIONS.slice();
+      }
+      return {
+        master: false,
+        team: entry.team || '',
+        accounts: (entry.accounts === '*' ? '*' : (entry.accounts || [])),
+        actions: actions
+      };
+    }
+  }
+  return null;
+}
+
+/**
+ * Проверяет, разрешён ли запрошенный account_id для контекста.
+ * Незаполненный account_id трактуется как DEFAULT_ACCOUNT_ID (старый дашборд,
+ * команда с дефолтом в списке). Мастер и "*" разрешают всё.
+ */
+function authAllowsAccount_(ctx, accountId) {
+  if (!ctx) return false;
+  if (ctx.master || ctx.accounts === '*') return true;
+  const id = String(accountId || '').trim() || DEFAULT_ACCOUNT_ID;
+  const list = Array.isArray(ctx.accounts) ? ctx.accounts : [];
+  return list.indexOf(id) !== -1;
+}
+
+/**
+ * Проверяет, входит ли действие в разрешённый для контекста набор.
+ * Мастер и ctx.actions === '*' разрешают любое действие. Для командного ключа —
+ * белый список (явный из записи ключа или дефолтный DEFAULT_KEY_ACTIONS).
+ * Пустое action трактуется как 'read' (так же, как в диспатче handle_).
+ */
+function authAllowsAction_(ctx, action) {
+  if (!ctx) return false;
+  if (ctx.master || ctx.actions === '*') return true;
+  const act = String(action || 'read');
+  const list = Array.isArray(ctx.actions) ? ctx.actions : [];
+  return list.indexOf(act) !== -1;
+}
+
 /** Запустите один раз — зальёт расписание 20 постов в таблицу. */
 function seedPosts() {
   const sheet = getSheet_();
@@ -292,9 +493,38 @@ function doPost(e) {
 
 function handle_(payload) {
   try {
-    if (!payload.pin || payload.pin !== APP_PIN) {
+    // Авторизация: мастер-PIN (наш дашборд) ИЛИ API-ключ команды (Фабрика).
+    const ctx = authContext_(payload);
+    if (!ctx) {
       return json_({ ok: false, error: 'Bad PIN', code: 'PIN_REQUIRED' });
     }
+
+    // Набор действий: мастер может всё, командный ключ — только белый список
+    // (по умолчанию DEFAULT_KEY_ACTIONS). Проверяем ДО выполнения действия,
+    // чтобы read/readProfiles и прочее не утекали по чужому ключу.
+    if (!authAllowsAction_(ctx, payload.action)) {
+      return json_({ ok: false, error: 'Действие «' +
+        String(payload.action || 'read') + '» не разрешено для этого ключа.',
+        code: 'ACTION_NOT_ALLOWED' });
+    }
+
+    // Действия с явным account_id — enforce доступ ключа к запрошенному аккаунту.
+    // Для schedule/unschedule, если account_id не передан, берём из строки листа.
+    const WRITE_ACCOUNT_ACTIONS = {
+      publishInstagram: true, publishInstagramReels: true, publishNow: true,
+      schedulePost: true, unschedulePost: true
+    };
+    if (WRITE_ACCOUNT_ACTIONS[payload.action]) {
+      let reqAccount = payload.accountId || payload.account_id || '';
+      if (!reqAccount && (payload.action === 'schedulePost' || payload.action === 'unschedulePost') && payload.rowIndex) {
+        reqAccount = accountIdOfRow_(payload.rowIndex);
+      }
+      if (!authAllowsAccount_(ctx, reqAccount)) {
+        return json_({ ok: false, error: 'Нет доступа к аккаунту «' +
+          (String(reqAccount || '').trim() || DEFAULT_ACCOUNT_ID) + '».', code: 'ACCESS_DENIED' });
+      }
+    }
+
     if (payload.action === 'ping') {
       return json_({ ok: true });
     }
@@ -319,6 +549,10 @@ function handle_(payload) {
     }
     if (payload.action === 'publishInstagramReels') {
       const r = publishInstagramReels_(payload);
+      return json_({ ok: true, igPostId: r.igPostId, permalink: r.permalink });
+    }
+    if (payload.action === 'publishNow') {
+      const r = publishNow_(payload);
       return json_({ ok: true, igPostId: r.igPostId, permalink: r.permalink });
     }
     if (payload.action === 'upload') {
@@ -403,7 +637,8 @@ function readAll_() {
       ig_alt_text: String(row[COLS.ig_alt_text.col - 1] || ''),
       ig_share_to_feed: String(row[COLS.ig_share_to_feed.col - 1] || ''),
       sched_attempts: Number(row[COLS.sched_attempts.col - 1]) || 0,
-      sched_error: String(row[COLS.sched_error.col - 1] || '')
+      sched_error: String(row[COLS.sched_error.col - 1] || ''),
+      account_id: String(row[COLS.account_id.col - 1] || '')
     };
     // Override-поля по платформам
     ['fb','tg','tt','yt','vk'].forEach(function(s) {
@@ -615,6 +850,15 @@ function getSheet_() {
   return sheet;
 }
 
+/**
+ * account_id из строки публикаций ('' = дефолтный аккаунт).
+ * Используется планировщиком и enforce-проверкой schedule/unschedule.
+ */
+function accountIdOfRow_(rowIndex) {
+  if (!rowIndex || rowIndex < FIRST_DATA_ROW) return '';
+  return String(getSheet_().getRange(rowIndex, COLS.account_id.col).getValue() || '').trim();
+}
+
 function getProfilesSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(PROFILES_SHEET);
@@ -752,15 +996,63 @@ function json_(obj) {
 const GRAPH_VERSION = 'v23.0';
 const GRAPH_BASE = 'https://graph.facebook.com/';
 
-/** Читает токен и IG Business Account ID из Script Properties. */
-function igProps_() {
+/**
+ * Резолвит креды публикации для аккаунта. Токен ОДИН на все аккаунты
+ * (System User, Script Property IG_ACCESS_TOKEN); из реестра берётся только
+ * ig_user_id по account_id.
+ *
+ *  - accountId пуст → DEFAULT_ACCOUNT_ID (обратная совместимость со старым дашбордом).
+ *  - account_id ищется в листе «аккаунты»; должен иметь статус 'active'.
+ *  - Фолбэк: если листа «аккаунты» ещё нет (старая установка до initAccountsSheet_),
+ *    дефолтный аккаунт резолвится напрямую из Script Property IG_USER_ID.
+ *
+ * Возвращает { igUserId, token, accountId } — форма, совместимая с хелперами
+ * igCreate.../igPublish... (они принимают этот creds-объект как есть).
+ */
+function igCredsFor_(accountId) {
   const props = PropertiesService.getScriptProperties();
-  const igUserId = props.getProperty('IG_USER_ID');
   const token = props.getProperty('IG_ACCESS_TOKEN');
-  if (!igUserId || !token) {
-    throw new Error('Нет IG_USER_ID или IG_ACCESS_TOKEN в Script Properties (Project Settings → Script Properties).');
+  if (!token) {
+    throw new Error('Нет IG_ACCESS_TOKEN в Script Properties (Project Settings → Script Properties).');
   }
-  return { igUserId: igUserId, token: token };
+  const id = String(accountId || '').trim() || DEFAULT_ACCOUNT_ID;
+
+  const accounts = readAccounts_();
+  // Фолбэк до создания реестра: дефолтный аккаунт берёт ig_user_id из старого свойства.
+  if (!accounts.length && id === DEFAULT_ACCOUNT_ID) {
+    const igUserId = props.getProperty('IG_USER_ID');
+    if (!igUserId) {
+      throw new Error('Нет IG_USER_ID в Script Properties и лист «' + ACCOUNTS_SHEET +
+        '» ещё не создан. Запустите initAccountsSheet_() или задайте IG_USER_ID.');
+    }
+    return { igUserId: igUserId, token: token, accountId: id };
+  }
+
+  const acc = accounts.filter(function (a) { return a.account_id === id; })[0];
+  if (!acc) {
+    // Фолбэк для дефолта, если реестр есть, но строки goldeneggs в нём нет.
+    if (id === DEFAULT_ACCOUNT_ID) {
+      const igUserId = props.getProperty('IG_USER_ID');
+      if (igUserId) return { igUserId: igUserId, token: token, accountId: id };
+    }
+    throw new Error('Аккаунт «' + id + '» не найден в листе «' + ACCOUNTS_SHEET + '».');
+  }
+  if (acc['статус'] && acc['статус'] !== 'active') {
+    throw new Error('Аккаунт «' + id + '» неактивен (статус: ' + acc['статус'] + ').');
+  }
+  if (!acc.ig_user_id) {
+    throw new Error('У аккаунта «' + id + '» не заполнен ig_user_id в листе «' + ACCOUNTS_SHEET + '».');
+  }
+  return { igUserId: acc.ig_user_id, token: token, accountId: id };
+}
+
+/**
+ * Тонкий шим обратной совместимости: креды дефолтного аккаунта.
+ * Оставлен для diagToken/testIgContainer/diagReels/testIgReelsContainer,
+ * которым не нужен явный account_id.
+ */
+function igProps_() {
+  return igCredsFor_(DEFAULT_ACCOUNT_ID);
 }
 
 /**
@@ -944,7 +1236,7 @@ function igPermalink_(creds, mediaId) {
  * Возвращает { igPostId, permalink }.
  */
 function publishInstagram_(payload) {
-  const creds = igProps_();
+  const creds = igCredsFor_(payload.accountId || payload.account_id);
   const rowIndex = payload.rowIndex;
   let urls = payload.mediaUrls;
   let caption = payload.caption;
@@ -1072,7 +1364,7 @@ function igWaitContainerReady_(creds, creationId) {
  * После успеха пишет в строку: статус published, ig_post_id, ig_permalink.
  */
 function publishInstagramReels_(payload) {
-  const creds = igProps_();
+  const creds = igCredsFor_(payload.accountId || payload.account_id);
   const rowIndex = payload.rowIndex;
   let videoUrl = payload.videoUrl;
   let caption = payload.caption;
@@ -1093,6 +1385,24 @@ function publishInstagramReels_(payload) {
   const clean = String(videoUrl || '').split('#')[0].trim();
   if (!clean) throw new Error('Нет видео для публикации.');
   return igDoReels_(creds, clean, caption, rowIndex, options);
+}
+
+/**
+ * Action `publishNow` — тонкий алиас немедленной публикации с явным accountId.
+ * Маршрутизирует на Reels или фото/карусель по типу медиа из payload и
+ * переиспользует существующую логику (publishInstagramReels_ / publishInstagram_),
+ * не дублируя её. Креды/enforce аккаунта уже разрешены в handle_.
+ *
+ * Маршрут на Reels, если: payload.videoUrl задан, ИЛИ payload.mediaType in
+ * {'reels','video'}. Иначе — publishInstagram_ (который сам авто-детектит видео
+ * по Drive MIME, если медиа берётся из строки).
+ */
+function publishNow_(payload) {
+  const mt = String(payload.mediaType || '').toLowerCase();
+  if (payload.videoUrl || mt === 'reels' || mt === 'video') {
+    return publishInstagramReels_(payload);
+  }
+  return publishInstagram_(payload);
 }
 
 /**
@@ -1217,7 +1527,8 @@ function publishScheduledRow_(sheet, rowIndex) {
   try {
     // Снимок, замороженный при планировании (то, что видел Дмитрий в превью):
     // подпись, медиа, опции. Если снимка нет — publishInstagram_ соберёт из строки.
-    const payload = { rowIndex: rowIndex };
+    // account_id строки определяет, в какой аккаунт публиковать (пусто = дефолт).
+    const payload = { rowIndex: rowIndex, account_id: accountIdOfRow_(rowIndex) };
     const snapRaw = String(sheet.getRange(rowIndex, COLS.sched_payload.col).getValue() || '');
     if (snapRaw) {
       try {

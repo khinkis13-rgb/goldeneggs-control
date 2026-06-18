@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  REFERENCE CLIENT — движок автопубликации Golden Eggs
+  ============================================================================
+
+  Это МИНИМАЛЬНЫЙ рабочий пример вызова нашего публичного HTTP API
+  (Google Apps Script Web App). Команда «Фабрика контента» форкает этот файл
+  и строит свою UI поверх тех же запросов.
+
+  Что это и чем НЕ является:
+    - ЭТО: голый технический референс. Показывает, как сформировать POST с JSON,
+      как авторизоваться по API-ключу и как читать сырой ответ движка.
+    - НЕ ЭТО: не финальная UI, не дизайн-система, не продакшен-дашборд.
+      Стиль намеренно скромный — читайте код как пример, а не как образец вёрстки.
+
+  Стек: один HTML-файл, vanilla JS, без сборки, без CDN и внешних зависимостей.
+  Просто откройте файл в браузере (двойным кликом или через Live Server).
+
+  ----------------------------------------------------------------------------
+  КАК ПОЛЬЗОВАТЬСЯ (быстрый старт)
+  ----------------------------------------------------------------------------
+    1. Впишите вверху «URL Web App» (endpoint вида
+       https://script.google.com/macros/s/.../exec) и «API-ключ».
+       Значения сохранятся в localStorage — вводить каждый раз не нужно.
+    2. Впишите account_id аккаунта, в который публикуете
+       (его выдаём вам мы вместе с ключом — см. ПЕСОЧНИЦА ниже).
+    3. Жмите «Проверка связи» → должно прийти {"ok":true}.
+    4. «Загрузка медиа» — заливает файл в наш Drive и возвращает прямой url.
+       Кнопка «Подставить URL в публикацию» переносит его в блок публикации.
+    5. «Опубликовать сейчас» — публикует фото/карусель или Reels.
+
+  ----------------------------------------------------------------------------
+  ПЕСОЧНИЦА (читать ДО первого запроса)
+  ----------------------------------------------------------------------------
+    Боевыми аккаунтами на этапе разработки НЕ рискуйте. Для отладки запросите
+    у нас ОТДЕЛЬНО:
+      - тестовый account_id (например `sandbox`),
+      - тестовый API-ключ с доступом ТОЛЬКО к этому account_id.
+    Так любая ошибка в коде максимум опубликует мусор в песочницу, а не в
+    реальный аккаунт темы.
+
+    Аккаунты и ключи заводим МЫ (это не самообслуживание):
+      - как заводится аккаунт — docs/ONBOARDING-ACCOUNT.md
+      - полный контракт API (все поля, форматы, коды ошибок) — docs/API.md
+    Если что-то в этом файле расходится с docs/API.md — источник истины
+    docs/API.md, пишите нам.
+
+  ----------------------------------------------------------------------------
+  МОДЕЛЬ ДОСТУПА (коротко)
+  ----------------------------------------------------------------------------
+    Авторизация — по полю apiKey в теле каждого запроса. Ключ привязан к команде
+    и к списку разрешённых account_id. Возможные коды отказа в ответе:
+      - PIN_REQUIRED       — ключ не распознан / не передан.
+      - ACTION_NOT_ALLOWED — это действие не входит в белый список ключа.
+      - ACCESS_DENIED      — нет доступа к запрошенному account_id.
+    Командному ключу по умолчанию разрешены: ping, upload, publishNow.
+  ============================================================================
+-->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reference client — движок автопубликации Golden Eggs</title>
+  <style>
+    /* Минимальный технический стиль. Без претензий на дизайн. */
+    :root { --bg:#f6f7f8; --card:#fff; --line:#dcdfe3; --ink:#1d2227; --muted:#5b6470; --accent:#2a6df4; --ok:#1a7f3c; --err:#c0392b; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--ink); margin: 0; padding: 24px; line-height: 1.45; }
+    main { max-width: 880px; margin: 0 auto; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    h2 { font-size: 16px; margin: 0 0 12px; }
+    .sub { color: var(--muted); font-size: 13px; margin: 0 0 20px; }
+    section { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; margin-bottom: 18px; }
+    label { display: block; font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
+    .hint { font-weight: 400; color: var(--muted); font-size: 12px; }
+    input[type=text], input[type=password], textarea, select {
+      width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px;
+      font-size: 13px; font-family: inherit; background: #fff;
+    }
+    textarea { resize: vertical; min-height: 56px; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .row > div { flex: 1 1 200px; }
+    button { margin-top: 12px; padding: 8px 16px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
+    button.ghost { background: #eef1f4; color: var(--ink); }
+    button:disabled { opacity: .5; cursor: default; }
+    .status { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 4px; margin-left: 8px; }
+    .status.ok  { background: #e3f5e9; color: var(--ok); }
+    .status.err { background: #fbe6e3; color: var(--err); }
+    .status.run { background: #eaf0fb; color: var(--accent); }
+    pre.out { background: #0f1419; color: #d6e2f0; padding: 12px; border-radius: 6px; font-size: 12px; overflow: auto; max-height: 360px; margin-top: 12px; white-space: pre-wrap; word-break: break-word; }
+    .callout { background: #fff8e1; border: 1px solid #f0d98a; border-radius: 8px; padding: 12px 16px; font-size: 13px; }
+    .callout code, p code, label code { background: #eef1f4; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+    .fieldset-opts { border: 1px dashed var(--line); border-radius: 6px; padding: 4px 14px 14px; margin-top: 14px; }
+    .fieldset-opts > summary { cursor: pointer; font-weight: 600; font-size: 13px; padding-top: 10px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Reference client — движок автопубликации Golden Eggs</h1>
+  <p class="sub">
+    Технический референс. Показывает вызов нашего HTTP API (Apps Script Web App).
+    Форкайте этот файл под свою UI. Источник истины по полям — <code>docs/API.md</code>.
+  </p>
+
+  <!-- ПЕСОЧНИЦА: видимый блок-предупреждение (дублирует комментарий в шапке файла). -->
+  <div class="callout">
+    <strong>Песочница.</strong> Для разработки запросите у нас отдельный
+    тестовый <code>account_id</code> (например <code>sandbox</code>) и тестовый
+    API-ключ с доступом только к нему — чтобы не рисковать боевыми аккаунтами.
+    Аккаунты и ключи заводим мы: см. <code>docs/ONBOARDING-ACCOUNT.md</code> и
+    контракт <code>docs/API.md</code>.
+  </div>
+
+  <!-- ====================== НАСТРОЙКИ ПОДКЛЮЧЕНИЯ ====================== -->
+  <!-- Эти три значения нужны каждому запросу. Сохраняем их в localStorage. -->
+  <section id="settings">
+    <h2>Настройки подключения</h2>
+    <label for="endpoint">URL Web App <span class="hint">(endpoint Apps Script, .../exec)</span></label>
+    <input type="text" id="endpoint" placeholder="https://script.google.com/macros/s/AKfyc.../exec" autocomplete="off" />
+
+    <label for="apiKey">API-ключ <span class="hint">(поле apiKey в теле запроса; выдаём мы)</span></label>
+    <input type="password" id="apiKey" placeholder="key_factory_..." autocomplete="off" />
+
+    <label for="accountId">account_id <span class="hint">(в какой аккаунт публикуем; для отладки — sandbox)</span></label>
+    <input type="text" id="accountId" placeholder="sandbox" autocomplete="off" />
+
+    <p class="hint" style="margin-top:12px">Сохраняется автоматически в localStorage этого браузера. Ключ не уходит никуда, кроме указанного выше endpoint.</p>
+  </section>
+
+  <!-- ====================== 1. ПРОВЕРКА СВЯЗИ (ping) ====================== -->
+  <section id="block-ping">
+    <h2>1. Проверка связи <span class="hint">— action <code>ping</code></span></h2>
+    <p class="hint">Самый дешёвый запрос: проверяет, что endpoint жив и ключ принят. Ответ: <code>{ "ok": true }</code>.</p>
+    <button id="btn-ping">Проверка связи <span id="ping-status"></span></button>
+    <pre class="out" id="ping-out" hidden></pre>
+  </section>
+
+  <!-- ====================== 2. ЗАГРУЗКА МЕДИА (upload) ====================== -->
+  <!--
+    Действие upload (см. uploadFile_ в apps_script.gs).
+    Поля запроса:
+      action: "upload"
+      apiKey: <ключ>
+      dataBase64: <содержимое файла, base64 БЕЗ префикса data:...;base64,>
+      mimeType:  <MIME, напр. image/jpeg, video/mp4>
+      filename:  <имя файла>
+      folderUrl: <URL папки Google Drive, куда класть файл>
+    Ответ: { ok:true, url, fileId, name }
+      url — ссылка вида https://drive.google.com/file/d/<id>/view,
+            её и подставляем в публикацию (движок сам преобразует в прямую).
+  -->
+  <section id="block-upload">
+    <h2>2. Загрузка медиа <span class="hint">— action <code>upload</code></span></h2>
+    <p class="hint">Заливает файл в нашу папку Drive и возвращает <code>url</code>. Файл читается в base64 прямо в браузере.</p>
+
+    <label for="up-file">Файл (фото или видео)</label>
+    <input type="file" id="up-file" accept="image/*,video/*" />
+
+    <label for="up-folder">URL папки Google Drive <span class="hint">(folderUrl — куда класть файл; выдаём мы вместе с песочницей)</span></label>
+    <input type="text" id="up-folder" placeholder="https://drive.google.com/drive/folders/..." autocomplete="off" />
+
+    <button id="btn-upload">Загрузить <span id="upload-status"></span></button>
+    <button id="btn-use-url" class="ghost" hidden>Подставить URL в публикацию</button>
+    <pre class="out" id="upload-out" hidden></pre>
+  </section>
+
+  <!-- ====================== 3. ОПУБЛИКОВАТЬ СЕЙЧАС (publishNow) ====================== -->
+  <!--
+    Действие publishNow (см. publishNow_ → publishInstagram_ / publishInstagramReels_).
+    Маршрутизация:
+      - если задан videoUrl ИЛИ mediaType in {reels, video} → Reels (одно видео);
+      - иначе → фото/карусель из mediaUrls[] (1 фото или 2+ = карусель).
+    Базовые поля:
+      action:    "publishNow"
+      apiKey:    <ключ>
+      accountId: <account_id>            (enforce-проверка доступа ключа)
+      caption:   <подпись>
+      mediaType: "photo" | "reels"       (подсказка маршрута; для фото можно не слать)
+      mediaUrls: ["<url>", ...]          (фото/карусель)
+      videoUrl:  "<url>"                 (Reels; одно видео)
+    Опции (вложенный объект options{}, ровно как в igAddParentOpts_/igAddPhotoOpts_/Reels):
+      options.collaborators: ["user1","user2"]   (соавторы, максимум 3 — лишние отбросятся)
+      options.locationId:    "<id геолокации Facebook Places>"
+      options.altText:       "<alt-текст для фото>"
+      options.userTags:      ["user1", ...]       (отметки людей на фото)
+      options.coverUrl:      "<url обложки Reels>"
+      options.shareToFeed:   true | false         (Reels: показывать в ленте)
+      options.firstComment:  "<хэштеги первым комментарием>"
+    Ответ: { ok:true, igPostId, permalink }
+  -->
+  <section id="block-publish">
+    <h2>3. Опубликовать сейчас <span class="hint">— action <code>publishNow</code></span></h2>
+
+    <div class="row">
+      <div>
+        <label for="pub-type">Тип публикации <span class="hint">(mediaType)</span></label>
+        <select id="pub-type">
+          <option value="photo">Фото / карусель</option>
+          <option value="reels">Reels (видео)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Фото/карусель: одна или несколько ссылок (по одной в строке) -->
+    <div id="pub-photo-fields">
+      <label for="pub-media">mediaUrls <span class="hint">(по одной ссылке в строке; 2+ = карусель)</span></label>
+      <textarea id="pub-media" placeholder="https://drive.google.com/file/d/.../view"></textarea>
+    </div>
+
+    <!-- Reels: одно видео -->
+    <div id="pub-video-fields" hidden>
+      <label for="pub-video">videoUrl <span class="hint">(одно видео = один Reels)</span></label>
+      <input type="text" id="pub-video" placeholder="https://drive.google.com/file/d/.../view" autocomplete="off" />
+    </div>
+
+    <label for="pub-caption">caption <span class="hint">(подпись)</span></label>
+    <textarea id="pub-caption" placeholder="Текст поста..."></textarea>
+
+    <!-- Опциональные поля IG: соавторы / гео / alt / отметки / обложка / первый коммент. -->
+    <details class="fieldset-opts">
+      <summary>Дополнительные опции (options{})</summary>
+
+      <label for="opt-collaborators">collaborators <span class="hint">(соавторы через запятую, максимум 3)</span></label>
+      <input type="text" id="opt-collaborators" placeholder="user1, user2" autocomplete="off" />
+
+      <label for="opt-location">locationId <span class="hint">(ID геолокации Facebook Places)</span></label>
+      <input type="text" id="opt-location" placeholder="123456789" autocomplete="off" />
+
+      <label for="opt-usertags">userTags <span class="hint">(отметки людей на фото, через запятую)</span></label>
+      <input type="text" id="opt-usertags" placeholder="user1, user2" autocomplete="off" />
+
+      <label for="opt-alt">altText <span class="hint">(alt-текст фото для доступности)</span></label>
+      <input type="text" id="opt-alt" placeholder="Описание изображения" autocomplete="off" />
+
+      <label for="opt-cover">coverUrl <span class="hint">(обложка Reels, только для видео)</span></label>
+      <input type="text" id="opt-cover" placeholder="https://..." autocomplete="off" />
+
+      <label for="opt-first-comment">firstComment <span class="hint">(хэштеги первым комментарием)</span></label>
+      <input type="text" id="opt-first-comment" placeholder="#хэштег1 #хэштег2" autocomplete="off" />
+
+      <label style="margin-top:14px"><input type="checkbox" id="opt-share-feed" /> shareToFeed — показывать Reels в ленте</label>
+    </details>
+
+    <button id="btn-publish">Опубликовать <span id="publish-status"></span></button>
+    <pre class="out" id="publish-out" hidden></pre>
+  </section>
+
+</main>
+
+<script>
+'use strict';
+
+// ===========================================================================
+// Утилиты
+// ===========================================================================
+
+/** Короткий доступ к элементу по id. */
+function $(id) { return document.getElementById(id); }
+
+/**
+ * Ядро клиента: один POST с JSON-телом на endpoint Apps Script.
+ *
+ * Важно про CORS: Apps Script Web App не отдаёт CORS-заголовки для запросов
+ * с кастомным Content-Type (application/json) — браузер уйдёт в preflight и
+ * упрётся. Поэтому шлём тело как text/plain (это «простой» запрос без preflight),
+ * а на сервере doPost всё равно делает JSON.parse(e.postData.contents).
+ * Так же это работает в dashboard.html.
+ *
+ * @param {object} payload — тело запроса (включая action и apiKey).
+ * @returns {Promise<{httpStatus:number, data:object, rawText:string}>}
+ */
+async function callApi(payload) {
+  const endpoint = $('endpoint').value.trim();
+  if (!endpoint) throw new Error('Не задан URL Web App в настройках.');
+
+  const resp = await fetch(endpoint, {
+    method: 'POST',
+    // text/plain → «простой» запрос, без CORS preflight. Сервер парсит как JSON.
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload),
+    redirect: 'follow'
+  });
+
+  const rawText = await resp.text();
+  let data = {};
+  try { data = JSON.parse(rawText); } catch (_) { /* оставим rawText как есть */ }
+  return { httpStatus: resp.status, data: data, rawText: rawText };
+}
+
+/** Текущий API-ключ из настроек. */
+function apiKey() { return $('apiKey').value.trim(); }
+
+/** Текущий account_id из настроек. */
+function accountId() { return $('accountId').value.trim(); }
+
+/**
+ * Рисует индикатор статуса рядом с кнопкой.
+ * kind: 'run' | 'ok' | 'err'.
+ */
+function setStatus(elId, kind, text) {
+  const el = $(elId);
+  el.className = 'status ' + kind;
+  el.textContent = text;
+}
+
+/**
+ * Показывает сырой JSON-ответ в <pre> и выставляет статус ok/ошибки.
+ * Распознаёт коды отказа авторизации (PIN_REQUIRED / ACTION_NOT_ALLOWED /
+ * ACCESS_DENIED) и показывает их явно.
+ *
+ * @param {string} outId    — id элемента <pre> для вывода.
+ * @param {string} statusId — id элемента-индикатора статуса.
+ * @param {{httpStatus:number, data:object, rawText:string}} res
+ */
+function renderResult(outId, statusId, res) {
+  const out = $(outId);
+  out.hidden = false;
+  // Печатаем именно СЫРОЙ ответ. Если это валидный JSON — красиво форматируем.
+  out.textContent = res.rawText
+    ? (Object.keys(res.data).length ? JSON.stringify(res.data, null, 2) : res.rawText)
+    : '(пустой ответ, HTTP ' + res.httpStatus + ')';
+
+  const d = res.data || {};
+  if (d.ok === true) {
+    setStatus(statusId, 'ok', 'ok');
+    return;
+  }
+  // Ошибка: подсветим код, если он есть (PIN_REQUIRED / ACTION_NOT_ALLOWED / ACCESS_DENIED).
+  const code = d.code ? d.code : (res.httpStatus >= 400 ? 'HTTP ' + res.httpStatus : 'ошибка');
+  setStatus(statusId, 'err', code);
+}
+
+/** Единая обёртка для ошибок сети/исключений (endpoint недоступен и т.п.). */
+function renderError(outId, statusId, err) {
+  $(outId).hidden = false;
+  $(outId).textContent = 'Запрос не выполнен:\n' + (err && err.message || err);
+  setStatus(statusId, 'err', 'сбой');
+}
+
+// ===========================================================================
+// localStorage: запоминаем настройки подключения и папку Drive
+// ===========================================================================
+
+const LS_KEYS = {
+  endpoint:  'ge_ref_endpoint',
+  apiKey:    'ge_ref_apiKey',
+  accountId: 'ge_ref_accountId',
+  upFolder:  'ge_ref_upFolder'
+};
+
+/** Загружает сохранённые значения в поля при старте. */
+function restoreSettings() {
+  if (localStorage.getItem(LS_KEYS.endpoint))  $('endpoint').value  = localStorage.getItem(LS_KEYS.endpoint);
+  if (localStorage.getItem(LS_KEYS.apiKey))    $('apiKey').value    = localStorage.getItem(LS_KEYS.apiKey);
+  if (localStorage.getItem(LS_KEYS.accountId)) $('accountId').value = localStorage.getItem(LS_KEYS.accountId);
+  if (localStorage.getItem(LS_KEYS.upFolder))  $('up-folder').value = localStorage.getItem(LS_KEYS.upFolder);
+}
+
+/** Привязывает автосохранение к полю input. */
+function persistOnInput(inputId, lsKey) {
+  $(inputId).addEventListener('input', function () {
+    localStorage.setItem(lsKey, $(inputId).value.trim());
+  });
+}
+
+// ===========================================================================
+// 1. ping
+// ===========================================================================
+
+$('btn-ping').addEventListener('click', async function () {
+  setStatus('ping-status', 'run', '...');
+  try {
+    const res = await callApi({ action: 'ping', apiKey: apiKey() });
+    renderResult('ping-out', 'ping-status', res);
+  } catch (err) {
+    renderError('ping-out', 'ping-status', err);
+  }
+});
+
+// ===========================================================================
+// 2. upload
+// ===========================================================================
+
+/** Читает File как чистый base64 (без префикса data:...;base64,). */
+function fileToBase64(file) {
+  return new Promise(function (resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function () {
+      // result = "data:<mime>;base64,<payload>" — отрезаем заголовок.
+      const comma = String(reader.result).indexOf(',');
+      resolve(String(reader.result).slice(comma + 1));
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+$('btn-upload').addEventListener('click', async function () {
+  const file = $('up-file').files[0];
+  const folderUrl = $('up-folder').value.trim();
+  $('btn-use-url').hidden = true;
+
+  if (!file) { renderError('upload-out', 'upload-status', new Error('Выберите файл.')); return; }
+  if (!folderUrl) { renderError('upload-out', 'upload-status', new Error('Укажите URL папки Drive (folderUrl).')); return; }
+
+  setStatus('upload-status', 'run', 'читаю файл...');
+  try {
+    const dataBase64 = await fileToBase64(file);
+    setStatus('upload-status', 'run', 'загружаю...');
+    const res = await callApi({
+      action: 'upload',
+      apiKey: apiKey(),
+      dataBase64: dataBase64,
+      mimeType: file.type || 'application/octet-stream',
+      filename: file.name,
+      folderUrl: folderUrl
+    });
+    renderResult('upload-out', 'upload-status', res);
+
+    // Если пришёл url — показываем кнопку «подставить в публикацию».
+    if (res.data && res.data.ok && res.data.url) {
+      const btn = $('btn-use-url');
+      btn.hidden = false;
+      btn.dataset.url = res.data.url;
+      btn.dataset.mime = file.type || '';
+    }
+  } catch (err) {
+    renderError('upload-out', 'upload-status', err);
+  }
+});
+
+/** «Подставить URL в публикацию»: кладёт полученный url в нужное поле блока 3. */
+$('btn-use-url').addEventListener('click', function () {
+  const url = this.dataset.url || '';
+  const mime = this.dataset.mime || '';
+  if (!url) return;
+  if (mime.indexOf('video/') === 0) {
+    // Видео → Reels: переключаем тип и кладём в videoUrl.
+    $('pub-type').value = 'reels';
+    togglePubType();
+    $('pub-video').value = url;
+  } else {
+    // Фото → добавляем ссылку новой строкой в mediaUrls.
+    $('pub-type').value = 'photo';
+    togglePubType();
+    const cur = $('pub-media').value.trim();
+    $('pub-media').value = cur ? (cur + '\n' + url) : url;
+  }
+  // Прокрутим к блоку публикации, чтобы было видно результат.
+  $('block-publish').scrollIntoView({ behavior: 'smooth' });
+});
+
+// ===========================================================================
+// 3. publishNow
+// ===========================================================================
+
+/** Переключает видимость полей фото/Reels по выбранному mediaType. */
+function togglePubType() {
+  const isReels = $('pub-type').value === 'reels';
+  $('pub-photo-fields').hidden = isReels;
+  $('pub-video-fields').hidden = !isReels;
+  $('opt-cover').closest('label').style.opacity = isReels ? '1' : '.5';
+}
+$('pub-type').addEventListener('change', togglePubType);
+
+/** Парсит строку «a, b; c» в массив непустых значений (для соавторов/отметок). */
+function parseList(s) {
+  return String(s || '').split(/[\s,;]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+}
+
+/** Собирает options{} только из заполненных полей (пустые не шлём). */
+function collectOptions() {
+  const opts = {};
+  const collaborators = parseList($('opt-collaborators').value);
+  const userTags = parseList($('opt-usertags').value);
+  if (collaborators.length) opts.collaborators = collaborators;
+  if (userTags.length) opts.userTags = userTags;
+  if ($('opt-location').value.trim()) opts.locationId = $('opt-location').value.trim();
+  if ($('opt-alt').value.trim()) opts.altText = $('opt-alt').value.trim();
+  if ($('opt-cover').value.trim()) opts.coverUrl = $('opt-cover').value.trim();
+  if ($('opt-first-comment').value.trim()) opts.firstComment = $('opt-first-comment').value.trim();
+  if ($('opt-share-feed').checked) opts.shareToFeed = true;
+  return opts;
+}
+
+$('btn-publish').addEventListener('click', async function () {
+  const isReels = $('pub-type').value === 'reels';
+
+  // Базовый payload. accountId всегда шлём — движок enforce-ит доступ ключа.
+  const payload = {
+    action: 'publishNow',
+    apiKey: apiKey(),
+    accountId: accountId(),
+    mediaType: isReels ? 'reels' : 'photo',
+    caption: $('pub-caption').value
+  };
+
+  if (isReels) {
+    const videoUrl = $('pub-video').value.trim();
+    if (!videoUrl) { renderError('publish-out', 'publish-status', new Error('Укажите videoUrl.')); return; }
+    payload.videoUrl = videoUrl;
+  } else {
+    // mediaUrls: по одной ссылке в строке.
+    const mediaUrls = $('pub-media').value.split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    if (!mediaUrls.length) { renderError('publish-out', 'publish-status', new Error('Укажите хотя бы одну ссылку в mediaUrls.')); return; }
+    payload.mediaUrls = mediaUrls;
+  }
+
+  const opts = collectOptions();
+  if (Object.keys(opts).length) payload.options = opts;
+
+  // Reels публикуется асинхронно (движок поллит готовность видео) — ответ может
+  // прийти не сразу, до ~2.5 минут. Это нормально, не закрывайте вкладку.
+  setStatus('publish-status', 'run', isReels ? 'публикую Reels (до ~2.5 мин)...' : 'публикую...');
+  $('btn-publish').disabled = true;
+  try {
+    const res = await callApi(payload);
+    renderResult('publish-out', 'publish-status', res);
+    // Подсветим igPostId/permalink, если публикация удалась.
+    if (res.data && res.data.ok && (res.data.igPostId || res.data.permalink)) {
+      const extra = '\n\n--- результат ---\nigPostId: ' + (res.data.igPostId || '(нет)') +
+        '\npermalink: ' + (res.data.permalink || '(нет)');
+      $('publish-out').textContent += extra;
+    }
+  } catch (err) {
+    renderError('publish-out', 'publish-status', err);
+  } finally {
+    $('btn-publish').disabled = false;
+  }
+});
+
+// ===========================================================================
+// Инициализация
+// ===========================================================================
+
+restoreSettings();
+persistOnInput('endpoint', LS_KEYS.endpoint);
+persistOnInput('apiKey', LS_KEYS.apiKey);
+persistOnInput('accountId', LS_KEYS.accountId);
+persistOnInput('up-folder', LS_KEYS.upFolder);
+togglePubType();
+</script>
+</body>
+</html>

@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  КОНТЕНТ-СТУДИЯ — стартовый каркас (донор для «Фабрики контента»)
+  ============================================================================
+
+  Это САМОДОКУМЕНТИРУЮЩИЙСЯ стартовый каркас веб-приложения. Команда-донор
+  отдаёт его соседнему отделу: вы форкаете этот файл и достраиваете СВОЮ UI
+  поверх готового движка автопубликации в Instagram.
+
+  Один самодостаточный HTML-файл: vanilla HTML/CSS/JS, без сборки, без CDN,
+  без внешних зависимостей. Открывается двойным кликом.
+
+  ----------------------------------------------------------------------------
+  ЛЕГЕНДА СТАТУСОВ (используется и в UI, и в этих комментариях)
+  ----------------------------------------------------------------------------
+    ✅ РАБОТАЕТ ВЖИВУЮ   — реально дёргает движок (наш HTTP API).
+    🟡 ДЕМО-ЗАГЛУШКА     — данные-примеры в JS, заменить на своё хранилище.
+    🔧 ВАМ ПОСТРОИТЬ      — функциональность, которую достраивает Фабрика.
+
+  Разделы приложения и их статус:
+    • Настройки           ✅  — доступы движка, сохраняются в localStorage.
+    • Контентные разделы  🟡  — демо-данные SAMPLE_SECTIONS.
+    • Календарь           🟡/🔧 — слой планирования; авто-публикация = ваша зона.
+    • Редактор поста      ✅/🔧 — upload + publishNow вживую; «Запланировать» = заглушка.
+    • Журнал              ✅  — сырые JSON-ответы движка (отладка интеграции).
+    • Внедрение / Roadmap — самодокументация, чеклист внедрения.
+
+  ----------------------------------------------------------------------------
+  ИСТОЧНИК ИСТИНЫ ПО API
+  ----------------------------------------------------------------------------
+    Все поля, действия, коды ошибок и особенности транспорта взяты из:
+      • ../docs/API.md              — контракт движка (источник истины).
+      • ../docs/ONBOARDING-ACCOUNT.md — как заводятся аккаунты (НАША зона).
+      • ./START-HERE.md             — пошаговое внедрение (см. вкладку Roadmap).
+    Если код этого файла расходится с docs/API.md — прав docs/API.md.
+
+  ----------------------------------------------------------------------------
+  ГРАНИЦА ОТВЕТСТВЕННОСТИ
+  ----------------------------------------------------------------------------
+    НАША зона (движок): токен Meta (не покидает наш контур), сам акт публикации,
+      онбординг каждого нового аккаунта.
+    ВАША зона (Фабрика): интерфейс, разделы/команды, контент, ваше хранилище,
+      ваш собственный планировщик публикаций по времени.
+
+    Командному ключу доступны ТОЛЬКО действия: upload / publishNow / ping.
+    Всё остальное (чтение чужого контента, серверное расписание и т.д.) вернёт
+    ACTION_NOT_ALLOWED — поэтому в этом каркасе нет кнопок «прочитать посты с движка».
+  ============================================================================
+-->
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Контент-студия — стартовый каркас</title>
+  <style>
+    /* ====================================================================
+       НЕЙТРАЛЬНАЯ ПАЛИТРА. Никакой айдентики — спокойные серые/синие,
+       системный шрифт. Замените под свой бренд (TODO: см. Roadmap, шаг 4).
+       ==================================================================== */
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --line: #d9dee4;
+      --line-soft: #e8ecf0;
+      --ink: #1c2430;
+      --muted: #5d6b7a;
+      --accent: #2f6fed;
+      --accent-soft: #e9f0fe;
+      --ok: #1a7f3c;
+      --ok-soft: #e3f5e9;
+      --err: #c0392b;
+      --err-soft: #fbe6e3;
+      --warn: #9a6a00;
+      --warn-soft: #fff4d6;
+      --demo: #7a5cc7;
+      --demo-soft: #f0ebfb;
+      --build: #b45309;
+      --build-soft: #fdf0dd;
+      --radius: 10px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.5;
+      font-size: 14px;
+    }
+
+    /* ---------- Каркас страницы: шапка + сайдбар + контент ---------- */
+    .app {
+      display: grid;
+      grid-template-columns: 248px 1fr;
+      grid-template-rows: auto 1fr;
+      grid-template-areas: "head head" "nav main";
+      min-height: 100vh;
+    }
+    header.topbar {
+      grid-area: head;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+      padding: 14px 22px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .topbar .mark {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: linear-gradient(135deg, #5d7bf0, #2f6fed);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 18px; flex: none;
+    }
+    .topbar .title h1 { font-size: 16px; margin: 0; font-weight: 700; }
+    .topbar .title p { font-size: 12px; margin: 0; color: var(--muted); }
+    .topbar .conn {
+      margin-left: auto; font-size: 12px; color: var(--muted);
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+
+    /* ---------- Левая навигация ---------- */
+    nav.sidebar {
+      grid-area: nav;
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      padding: 14px 10px;
+    }
+    nav.sidebar button.navbtn {
+      display: flex; align-items: center; gap: 10px;
+      width: 100%; text-align: left;
+      background: transparent; border: 0; border-radius: 8px;
+      padding: 10px 12px; margin: 2px 0;
+      font-size: 14px; color: var(--ink); cursor: pointer;
+      font-family: inherit;
+    }
+    nav.sidebar button.navbtn:hover { background: var(--line-soft); }
+    nav.sidebar button.navbtn.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+    nav.sidebar .navicon { width: 18px; text-align: center; flex: none; }
+
+    main.content { grid-area: main; padding: 22px; max-width: 1040px; }
+    .view { display: none; }
+    .view.active { display: block; }
+    h2.view-title { font-size: 20px; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    /* ---------- Бейджи легенды статусов ---------- */
+    .badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+      white-space: nowrap;
+    }
+    .badge.live  { background: var(--ok-soft);    color: var(--ok); }
+    .badge.demo  { background: var(--demo-soft);  color: var(--demo); }
+    .badge.build { background: var(--build-soft); color: var(--build); }
+
+    /* ---------- Info-блок «Что это / Откуда данные / Что дальше» ---------- */
+    .info {
+      background: var(--accent-soft);
+      border: 1px solid #cfe0fd;
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      margin: 14px 0 18px;
+      font-size: 13px;
+    }
+    .info b { color: var(--ink); }
+    .info ul { margin: 6px 0 0; padding-left: 18px; }
+    .info li { margin: 3px 0; }
+    .info .next { color: var(--accent); font-weight: 600; }
+
+    /* ---------- Карточки / панели ---------- */
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      margin-bottom: 16px;
+    }
+    .card h3 { font-size: 15px; margin: 0 0 10px; }
+
+    label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 4px; }
+    .hint { font-weight: 400; color: var(--muted); font-size: 12px; }
+    input[type=text], input[type=password], input[type=date], textarea, select {
+      width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px;
+      font-size: 13px; font-family: inherit; background: #fff; color: var(--ink);
+    }
+    textarea { resize: vertical; min-height: 60px; }
+    .row { display: flex; gap: 14px; flex-wrap: wrap; }
+    .row > div { flex: 1 1 220px; }
+
+    button.btn {
+      margin-top: 12px; padding: 9px 16px; border: 0; border-radius: 7px;
+      background: var(--accent); color: #fff; font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+    }
+    button.btn.ghost { background: var(--line-soft); color: var(--ink); }
+    button.btn.warnbtn { background: var(--warn-soft); color: var(--warn); border: 1px solid #ecd596; }
+    button.btn:disabled { opacity: .55; cursor: default; }
+    button.btn.small { padding: 5px 10px; font-size: 12px; margin-top: 0; }
+
+    .statuslbl { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 4px; margin-left: 8px; }
+    .statuslbl.ok  { background: var(--ok-soft);  color: var(--ok); }
+    .statuslbl.err { background: var(--err-soft); color: var(--err); }
+    .statuslbl.run { background: var(--accent-soft); color: var(--accent); }
+
+    pre.out {
+      background: #0f1419; color: #d6e2f0; padding: 12px; border-radius: 7px;
+      font-size: 12px; overflow: auto; max-height: 340px; margin-top: 12px;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    p code, li code, label code, .info code {
+      background: var(--line-soft); padding: 1px 5px; border-radius: 4px; font-size: 12px;
+    }
+
+    /* ---------- Сетка контентных разделов ---------- */
+    .section-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 14px; }
+    .section-tabs button {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+      padding: 7px 14px; font-size: 13px; cursor: pointer; font-family: inherit; color: var(--ink);
+    }
+    .section-tabs button.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+    .post-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+    .post-card {
+      background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+      padding: 14px; cursor: pointer; transition: border-color .12s;
+    }
+    .post-card:hover { border-color: var(--accent); }
+    .post-card .pc-head { display: flex; justify-content: space-between; gap: 8px; align-items: start; }
+    .post-card h4 { margin: 0 0 6px; font-size: 14px; }
+    .post-card .pc-meta { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+    .pill { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+    .pill.draft     { background: var(--line-soft); color: var(--muted); }
+    .pill.scheduled { background: var(--warn-soft); color: var(--warn); }
+    .pill.published { background: var(--ok-soft);  color: var(--ok); }
+
+    /* ---------- Календарь ---------- */
+    .cal-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .cal-head .cal-title { font-size: 16px; font-weight: 700; min-width: 180px; text-align: center; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+    .cal-dow { font-size: 11px; font-weight: 700; color: var(--muted); text-align: center; padding: 4px 0; text-transform: uppercase; }
+    .cal-cell {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+      min-height: 84px; padding: 6px; cursor: pointer; overflow: hidden;
+    }
+    .cal-cell.empty { background: transparent; border: 0; cursor: default; }
+    .cal-cell:hover:not(.empty) { border-color: var(--accent); }
+    .cal-cell .daynum { font-size: 12px; font-weight: 700; color: var(--muted); }
+    .cal-cell.today .daynum { color: var(--accent); }
+    .cal-dot { font-size: 11px; margin-top: 3px; padding: 2px 5px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .cal-dot.draft { background: var(--line-soft); color: var(--muted); }
+    .cal-dot.scheduled { background: var(--warn-soft); color: var(--warn); }
+    .cal-dot.published { background: var(--ok-soft); color: var(--ok); }
+
+    /* ---------- Модал редактора ---------- */
+    .modal-back {
+      position: fixed; inset: 0; background: rgba(20,28,40,.5);
+      display: none; align-items: flex-start; justify-content: center;
+      padding: 28px 16px; overflow-y: auto; z-index: 50;
+    }
+    .modal-back.open { display: flex; }
+    .modal {
+      background: var(--panel); border-radius: 14px; width: 100%; max-width: 680px;
+      padding: 20px 22px; box-shadow: 0 18px 50px rgba(0,0,0,.25);
+    }
+    .modal .m-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+    .modal .m-head h3 { margin: 0; font-size: 17px; }
+    .modal .x { background: transparent; border: 0; font-size: 22px; cursor: pointer; color: var(--muted); line-height: 1; }
+    details.opts { border: 1px dashed var(--line); border-radius: 8px; padding: 2px 14px 14px; margin-top: 14px; }
+    details.opts > summary { cursor: pointer; font-weight: 600; font-size: 13px; padding-top: 12px; }
+    .modal-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+
+    .callout { border-radius: 8px; padding: 11px 14px; font-size: 13px; margin-top: 12px; }
+    .callout.warn { background: var(--warn-soft); border: 1px solid #ecd596; color: #5e4500; }
+    .callout.build { background: var(--build-soft); border: 1px solid #f0cd9a; color: #5e3a05; }
+
+    /* ---------- Журнал ---------- */
+    .log-entry { border: 1px solid var(--line); border-left-width: 4px; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; background: var(--panel); }
+    .log-entry.ok  { border-left-color: var(--ok); }
+    .log-entry.err { border-left-color: var(--err); }
+    .log-entry .le-head { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--muted); }
+    .log-entry .le-action { font-weight: 700; color: var(--ink); }
+    .log-entry pre { margin: 8px 0 0; background: #0f1419; color: #d6e2f0; padding: 10px; border-radius: 6px; font-size: 11.5px; overflow: auto; max-height: 220px; white-space: pre-wrap; word-break: break-word; }
+
+    /* ---------- Roadmap ---------- */
+    .legend-row { display: flex; gap: 16px; flex-wrap: wrap; margin: 10px 0 4px; }
+    .legend-item { font-size: 13px; }
+    ol.roadmap { padding-left: 22px; }
+    ol.roadmap li { margin: 8px 0; }
+    .zone-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px; }
+    .zone-grid .zone { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+    .zone h4 { margin: 0 0 8px; font-size: 14px; }
+    .zone ul { margin: 0; padding-left: 18px; font-size: 13px; }
+    .doclinks a { color: var(--accent); text-decoration: none; }
+    .doclinks a:hover { text-decoration: underline; }
+
+    /* ---------- Адаптив: на узких экранах сайдбар уходит наверх ---------- */
+    @media (max-width: 720px) {
+      .app { grid-template-columns: 1fr; grid-template-areas: "head" "nav" "main"; }
+      nav.sidebar { border-right: 0; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 4px; }
+      nav.sidebar button.navbtn { width: auto; }
+      .zone-grid { grid-template-columns: 1fr; }
+      main.content { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============================ ШАПКА ============================ -->
+  <header class="topbar">
+    <div class="mark" aria-hidden="true">◷</div>
+    <div class="title">
+      <h1>Контент-студия <span class="hint">(стартовый каркас)</span></h1>
+      <p>переименуйте под свой проект</p>
+    </div>
+    <div class="conn">
+      <span id="conn-state">связь не проверена</span>
+    </div>
+  </header>
+
+  <!-- ======================= ЛЕВАЯ НАВИГАЦИЯ ======================= -->
+  <nav class="sidebar" id="sidebar">
+    <button class="navbtn active" data-view="settings"><span class="navicon">⚙️</span> Настройки</button>
+    <button class="navbtn" data-view="sections"><span class="navicon">🗂️</span> Контентные разделы</button>
+    <button class="navbtn" data-view="calendar"><span class="navicon">📅</span> Календарь</button>
+    <button class="navbtn" data-view="log"><span class="navicon">📜</span> Журнал</button>
+    <button class="navbtn" data-view="roadmap"><span class="navicon">🚀</span> Внедрение / Roadmap</button>
+  </nav>
+
+  <main class="content">
+
+    <!-- ============================================================== -->
+    <!-- РАЗДЕЛ 1: НАСТРОЙКИ ✅ РАБОТАЕТ ВЖИВУЮ                          -->
+    <!-- ============================================================== -->
+    <section class="view active" id="view-settings">
+      <h2 class="view-title">Настройки <span class="badge live">✅ Работает вживую</span></h2>
+
+      <div class="info">
+        <b>Что это.</b> Доступы к движку автопубликации. Эти значения вам выдаёт команда движка.
+        <ul>
+          <li><b>Откуда берутся данные:</b> URL Web App, API-ключ и список <code>account_id</code> выдаём мы (команда движка). Папка Drive (<code>folderUrl</code>) — куда движок кладёт загруженное медиа — тоже согласуется с нами.</li>
+          <li><b>Что делать дальше:</b> впишите доступы и нажмите «Проверить связь» <span class="next">(→ шаги 1–2 в Roadmap)</span>. Подробности — в <code>./START-HERE.md</code> и <code>../docs/API.md</code>.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Доступы движка</h3>
+
+        <label for="cfg-endpoint">URL Web App движка <span class="hint">(endpoint Apps Script, оканчивается на /exec)</span></label>
+        <input type="text" id="cfg-endpoint" placeholder="https://script.google.com/macros/s/AKfyc.../exec" autocomplete="off" />
+
+        <label for="cfg-apikey">API-ключ команды <span class="hint">(поле apiKey в теле каждого запроса; выдаём мы)</span></label>
+        <input type="password" id="cfg-apikey" placeholder="key_factory_..." autocomplete="off" />
+
+        <label for="cfg-folder">folderUrl для загрузки медиа <span class="hint">(папка Google Drive, куда движок кладёт файлы)</span></label>
+        <input type="text" id="cfg-folder" placeholder="https://drive.google.com/drive/folders/..." autocomplete="off" />
+
+        <label for="cfg-accounts">Доступные account_id <span class="hint">(по одному в строке; шлём явно в каждой публикации, иначе ACCESS_DENIED)</span></label>
+        <textarea id="cfg-accounts" placeholder="sandbox&#10;porcelain&#10;business_love"></textarea>
+
+        <button class="btn" id="btn-save-settings">Сохранить</button>
+        <button class="btn ghost" id="btn-ping">Проверить связь <span id="ping-status" class="statuslbl"></span></button>
+        <pre class="out" id="ping-out" hidden></pre>
+        <p class="hint" style="margin-top:12px">Всё сохраняется в localStorage этого браузера. Ключ никуда не уходит, кроме указанного endpoint.</p>
+      </div>
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- РАЗДЕЛ 2: КОНТЕНТНЫЕ РАЗДЕЛЫ 🟡 ДЕМО-ЗАГЛУШКА                  -->
+    <!-- ============================================================== -->
+    <section class="view" id="view-sections">
+      <h2 class="view-title">Контентные разделы <span class="badge demo">🟡 Демо-заглушка</span></h2>
+
+      <div class="info">
+        <b>Что это.</b> Так вы организуете контент по командам / темам: каждый раздел — отдельная рубрика или направление со своими постами.
+        <ul>
+          <li><b>Откуда берутся данные:</b> сейчас это демо-массив <code>SAMPLE_SECTIONS</code> прямо в JS. Реальных постов с движка тут нет и быть не может — командному ключу чтение чужого контента закрыто (<code>ACTION_NOT_ALLOWED</code>).</li>
+          <li><b>Что делать дальше:</b> замените демо-данные на своё хранилище (БД / таблица / API) <span class="next">(→ шаг 3 в Roadmap)</span>. В коде это помечено <code>// TODO(шаг 3)</code>.</li>
+        </ul>
+      </div>
+
+      <div class="section-tabs" id="section-tabs"><!-- табы разделов рендерятся из JS --></div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:6px;">
+        <p class="hint" id="section-desc" style="margin:0;"></p>
+        <button class="btn small" id="btn-new-post">+ Пост</button>
+      </div>
+
+      <div class="post-grid" id="post-grid"><!-- карточки постов из JS --></div>
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- РАЗДЕЛ 3: КАЛЕНДАРЬ 🟡 (данные) / 🔧 (авто-публикация)         -->
+    <!-- ============================================================== -->
+    <section class="view" id="view-calendar">
+      <h2 class="view-title">Календарь
+        <span class="badge demo">🟡 Демо-данные</span>
+        <span class="badge build">🔧 Авто-публикация — вам</span>
+      </h2>
+
+      <div class="info">
+        <b>Что это.</b> Слой <b>планирования</b>: посты из ваших разделов разложены по датам. Удобно видеть график.
+        <ul>
+          <li><b>Откуда берутся данные:</b> те же демо-данные <code>SAMPLE_SECTIONS</code>, что и в разделах (поле <code>date</code> поста).</li>
+          <li><b>Честно про авто-публикацию:</b> календарь сам по себе НИЧЕГО не публикует. Движок публикует только по команде <code>publishNow</code>. Чтобы пост ушёл автоматически в нужное время — это делает <b>ваш серверный планировщик</b> (cron/задача), который в нужный момент вызывает <code>publishNow</code> <span class="next">(→ шаг 5 в Roadmap)</span>.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="cal-head">
+          <button class="btn ghost small" id="cal-prev">←</button>
+          <div class="cal-title" id="cal-title"></div>
+          <button class="btn ghost small" id="cal-next">→</button>
+        </div>
+        <div class="cal-grid" id="cal-dow-row"></div>
+        <div class="cal-grid" id="cal-grid" style="margin-top:6px;"></div>
+      </div>
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- РАЗДЕЛ 5: ЖУРНАЛ ✅ РАБОТАЕТ ВЖИВУЮ                            -->
+    <!-- ============================================================== -->
+    <section class="view" id="view-log">
+      <h2 class="view-title">Журнал <span class="badge live">✅ Работает вживую</span></h2>
+
+      <div class="info">
+        <b>Что это.</b> Лента сырых запросов и ответов движка: что мы отправили и что пришло в ответ.
+        <ul>
+          <li><b>Откуда берутся данные:</b> каждый реальный вызов движка (<code>ping</code> / <code>upload</code> / <code>publishNow</code>) пишет сюда запись. Зелёная полоса — <code>ok:true</code>, красная — ошибка.</li>
+          <li><b>Что делать дальше:</b> это инструмент отладки интеграции. Здесь удобно ловить <code>PIN_REQUIRED</code> / <code>ACTION_NOT_ALLOWED</code> / <code>ACCESS_DENIED</code> и тексты ошибок Meta. Ничего достраивать не нужно.</li>
+        </ul>
+      </div>
+
+      <button class="btn ghost small" id="btn-clear-log">Очистить журнал</button>
+      <div id="log-list" style="margin-top:14px;"></div>
+    </section>
+
+    <!-- ============================================================== -->
+    <!-- РАЗДЕЛ 6: ВНЕДРЕНИЕ / ROADMAP — самодокументация               -->
+    <!-- ============================================================== -->
+    <section class="view" id="view-roadmap">
+      <h2 class="view-title">Внедрение / Roadmap</h2>
+
+      <div class="card">
+        <h3>Легенда статусов</h3>
+        <p class="hint">Этими бейджами помечены разделы в интерфейсе и блоки в коде. Так каркас «сам себя объясняет».</p>
+        <div class="legend-row">
+          <span class="legend-item"><span class="badge live">✅ Работает вживую</span> — реально дёргает движок.</span>
+          <span class="legend-item"><span class="badge demo">🟡 Демо-заглушка</span> — данные-примеры в JS, заменить на своё хранилище.</span>
+          <span class="legend-item"><span class="badge build">🔧 Вам построить</span> — функциональность, которую достраивает Фабрика.</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Чеклист внедрения</h3>
+        <ol class="roadmap">
+          <li><b>Вписать доступы в Настройки.</b> URL Web App, API-ключ команды, <code>folderUrl</code> и список <code>account_id</code> (их выдаём мы). <span class="badge live">✅</span></li>
+          <li><b>Проверить связь.</b> Кнопка «Проверить связь» (<code>ping</code>) должна вернуть <code>{ "ok": true }</code>. <span class="badge live">✅</span></li>
+          <li><b>Заменить демо-разделы на своё хранилище.</b> Массив <code>SAMPLE_SECTIONS</code> → ваша БД / таблица / API. Код помечен <code>// TODO(шаг 3)</code>. <span class="badge demo">🟡→✅</span></li>
+          <li><b>Сверстать свою UI и айдентику.</b> Нейтральная палитра и имя «Контент-студия» — временные. Замените цвета, логотип, название. <span class="badge build">🔧</span></li>
+          <li><b>Построить планировщик, дёргающий <code>publishNow</code>.</b> Ваш серверный cron/задача в нужное время вызывает движок. См. <code>scheduleStub()</code> в коде и блок «Заглушка планировщика» в редакторе. <span class="badge build">🔧</span></li>
+          <li><b>Масштабировать на команды/аккаунты.</b> Несколько разделов, несколько <code>account_id</code>, разграничение доступа на вашей стороне. <span class="badge build">🔧</span></li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <h3>Граница: кто что делает</h3>
+        <div class="zone-grid">
+          <div class="zone">
+            <h4>Движок (наша зона) <span class="badge live">✅</span></h4>
+            <ul>
+              <li>Токен Meta — не покидает наш контур.</li>
+              <li>Сам акт публикации в Instagram (фото/карусель + Reels).</li>
+              <li>Загрузка медиа в Drive (<code>upload</code>).</li>
+              <li>Онбординг каждого нового аккаунта (<code>account_id</code>).</li>
+              <li>Действия ключу: только <code>upload</code> / <code>publishNow</code> / <code>ping</code>.</li>
+            </ul>
+          </div>
+          <div class="zone">
+            <h4>Фабрика (ваша зона) <span class="badge build">🔧</span></h4>
+            <ul>
+              <li>Интерфейс, айдентика, разделы/команды.</li>
+              <li>Ваше хранилище контента (БД/таблица).</li>
+              <li>Ваш серверный планировщик публикаций по времени.</li>
+              <li>Организация по темам и аккаунтам.</li>
+              <li>Facebook/прочие площадки — на будущее (движок пока публикует в Instagram).</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="card doclinks">
+        <h3>Документы</h3>
+        <ul>
+          <li><a href="./START-HERE.md">./START-HERE.md</a> — пошаговое внедрение для вашей команды.</li>
+          <li><a href="../docs/API.md">../docs/API.md</a> — полный контракт API (поля, форматы, коды ошибок). Источник истины.</li>
+          <li><a href="../docs/ONBOARDING-ACCOUNT.md">../docs/ONBOARDING-ACCOUNT.md</a> — как заводятся аккаунты (это наша зона; вам — для понимания).</li>
+        </ul>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ================================================================== -->
+<!-- МОДАЛ: РЕДАКТОР ПОСТА                                              -->
+<!-- ✅ Загрузить медиа + Опубликовать сейчас  /  🔧 Запланировать       -->
+<!-- ================================================================== -->
+<div class="modal-back" id="editor-back">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editor-title">
+    <div class="m-head">
+      <h3 id="editor-title">Редактор поста</h3>
+      <button class="x" id="editor-close" title="Закрыть">×</button>
+    </div>
+    <p class="hint" style="margin:0 0 4px;">Поля строго по <code>../docs/API.md</code> для действия <code>publishNow</code>.</p>
+
+    <div class="row">
+      <div>
+        <label for="ed-platform">Платформа</label>
+        <select id="ed-platform">
+          <option value="instagram">Instagram ✅</option>
+          <option value="facebook" disabled>Facebook 🔧 на будущее</option>
+        </select>
+      </div>
+      <div>
+        <label for="ed-account">account_id <span class="hint">(из Настроек; шлём явно)</span></label>
+        <select id="ed-account"></select>
+      </div>
+      <div>
+        <label for="ed-mediatype">mediaType</label>
+        <select id="ed-mediatype">
+          <option value="photo">Фото / карусель</option>
+          <option value="reels">Reels (видео)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Фото/карусель: массив mediaUrls (по одной ссылке в строке) -->
+    <div id="ed-photo-fields">
+      <label for="ed-mediaurls">mediaUrls <span class="hint">(массив! по одной ссылке в строке; 2+ = карусель)</span></label>
+      <textarea id="ed-mediaurls" placeholder="https://drive.google.com/file/d/.../view"></textarea>
+    </div>
+
+    <!-- Reels: одно видео -->
+    <div id="ed-video-fields" hidden>
+      <label for="ed-videourl">videoUrl <span class="hint">(одно видео = один Reels)</span></label>
+      <input type="text" id="ed-videourl" placeholder="https://drive.google.com/file/d/.../view" autocomplete="off" />
+    </div>
+
+    <label for="ed-caption">caption <span class="hint">(подпись)</span></label>
+    <textarea id="ed-caption" placeholder="Текст поста..."></textarea>
+
+    <!-- Загрузка медиа: action upload ✅ -->
+    <div class="card" style="margin-top:14px; background:var(--bg);">
+      <label for="ed-file" style="margin-top:0;">Загрузить медиа <span class="badge live">✅</span> <span class="hint">— action upload → вернёт url</span></label>
+      <input type="file" id="ed-file" accept="image/*,video/*" />
+      <button class="btn ghost small" id="btn-upload" style="margin-top:8px;">Загрузить <span id="upload-status" class="statuslbl"></span></button>
+      <button class="btn small" id="btn-use-url" hidden>Подставить в mediaUrls / videoUrl</button>
+      <pre class="out" id="upload-out" hidden></pre>
+    </div>
+
+    <!-- Опции IG: ровно те имена, что в API.md → options{} -->
+    <details class="opts">
+      <summary>Дополнительные опции (объект options{})</summary>
+
+      <label for="opt-collaborators">collaborators <span class="hint">(соавторы через запятую, максимум 3 — лишние движок отбросит)</span></label>
+      <input type="text" id="opt-collaborators" placeholder="user1, user2" autocomplete="off" />
+
+      <label for="opt-location">locationId <span class="hint">(ID локации Meta, не название)</span></label>
+      <input type="text" id="opt-location" placeholder="123456789" autocomplete="off" />
+
+      <label for="opt-usertags">userTags <span class="hint">(отметки людей на фото; координаты движок ставит в центр)</span></label>
+      <input type="text" id="opt-usertags" placeholder="user1, user2" autocomplete="off" />
+
+      <label for="opt-alt">altText <span class="hint">(alt-текст фото для доступности)</span></label>
+      <input type="text" id="opt-alt" placeholder="Описание изображения" autocomplete="off" />
+
+      <label for="opt-cover">coverUrl <span class="hint">(обложка Reels, только для видео)</span></label>
+      <input type="text" id="opt-cover" placeholder="https://..." autocomplete="off" />
+
+      <label for="opt-first-comment">firstComment <span class="hint">(хэштеги первым комментарием)</span></label>
+      <input type="text" id="opt-first-comment" placeholder="#хэштег1 #хэштег2" autocomplete="off" />
+
+      <label style="margin-top:14px"><input type="checkbox" id="opt-share-feed" /> shareToFeed — показывать Reels в ленте</label>
+    </details>
+
+    <!-- Планирование: дата для заглушки планировщика -->
+    <div class="row">
+      <div>
+        <label for="ed-date">Дата планирования <span class="hint">(для кнопки «Запланировать» 🔧)</span></label>
+        <input type="date" id="ed-date" />
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <!-- ✅ Опубликовать сейчас → publishNow вживую -->
+      <button class="btn" id="btn-publish">Опубликовать сейчас <span id="publish-status" class="statuslbl"></span></button>
+      <!-- 🔧 Запланировать → НЕ зовёт движок, локальная заглушка -->
+      <button class="btn warnbtn" id="btn-schedule">Запланировать 🔧</button>
+    </div>
+
+    <pre class="out" id="publish-out" hidden></pre>
+
+    <!-- Блок-подсказка про заглушку планировщика (показывается после «Запланировать») -->
+    <div class="callout build" id="schedule-callout" hidden>
+      <b>Заглушка планировщика.</b> Пост сохранён локально на выбранную дату — движок при этом НЕ вызывался.
+      Движок публикует только по команде <code>publishNow</code>. Чтобы публиковать автоматически в нужное время,
+      ваш серверный планировщик (cron/задача) должен в этот момент сам вызвать <code>publishNow</code>.
+      См. <code>./START-HERE.md → Шаг про планировщик</code> и функцию <code>scheduleStub()</code> в коде.
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ===========================================================================
+   ЛЕГЕНДА СТАТУСОВ (повтор для тех, кто читает только JS):
+     ✅ РАБОТАЕТ ВЖИВУЮ — реально дёргает движок.
+     🟡 ДЕМО-ЗАГЛУШКА   — данные-примеры, заменить на своё хранилище.
+     🔧 ВАМ ПОСТРОИТЬ    — функциональность, которую достраивает Фабрика.
+
+   Источник истины по API — ../docs/API.md. Транспорт и формат запросов
+   переиспользованы из reference-client.html (проверенный способ).
+   =========================================================================== */
+
+/* Короткий доступ к элементу по id. */
+function $(id) { return document.getElementById(id); }
+
+/* ===========================================================================
+   НАСТРОЙКИ (localStorage)  ✅ РАБОТАЕТ ВЖИВУЮ
+   Доступы к движку. Эти значения выдаёт команда движка — см. START-HERE.md.
+   =========================================================================== */
+
+var LS = {
+  endpoint: 'cs_endpoint',
+  apiKey:   'cs_apiKey',
+  folder:   'cs_folderUrl',
+  accounts: 'cs_accounts'   // список account_id, по одному в строке
+};
+
+/* Конфиг в памяти (читается из полей/localStorage). */
+function getConfig() {
+  return {
+    endpoint: ($('cfg-endpoint').value || '').trim(),
+    apiKey:   ($('cfg-apikey').value || '').trim(),
+    folderUrl:($('cfg-folder').value || '').trim(),
+    accounts: parseLines($('cfg-accounts').value)
+  };
+}
+
+/* Разбивает textarea на массив непустых строк. */
+function parseLines(s) {
+  return String(s || '').split(/\n+/).map(function (x) { return x.trim(); }).filter(Boolean);
+}
+
+/* Загружает сохранённые настройки в поля при старте. */
+function restoreSettings() {
+  if (localStorage.getItem(LS.endpoint)) $('cfg-endpoint').value = localStorage.getItem(LS.endpoint);
+  if (localStorage.getItem(LS.apiKey))   $('cfg-apikey').value   = localStorage.getItem(LS.apiKey);
+  if (localStorage.getItem(LS.folder))   $('cfg-folder').value   = localStorage.getItem(LS.folder);
+  if (localStorage.getItem(LS.accounts)) $('cfg-accounts').value = localStorage.getItem(LS.accounts);
+}
+
+/* Сохраняет настройки и перерисовывает зависящие от них элементы. */
+function saveSettings() {
+  localStorage.setItem(LS.endpoint, ($('cfg-endpoint').value || '').trim());
+  localStorage.setItem(LS.apiKey,   ($('cfg-apikey').value || '').trim());
+  localStorage.setItem(LS.folder,   ($('cfg-folder').value || '').trim());
+  localStorage.setItem(LS.accounts, $('cfg-accounts').value || '');
+  fillAccountSelect();
+  setStatus('ping-status', '', '');
+  $('conn-state').textContent = 'настройки сохранены — проверьте связь';
+}
+
+/* ===========================================================================
+   ТРАНСПОРТ  ✅ РАБОТАЕТ ВЖИВУЮ
+   Один POST с JSON-телом на endpoint Apps Script.
+
+   Важно (взято из reference-client.html и docs/API.md, раздел «Транспорт»):
+     - метод только POST (GET в движке отключён);
+     - Content-Type = text/plain;charset=utf-8 — это «простой» запрос без
+       CORS-preflight, а Apps Script всё равно делает JSON.parse(body);
+     - авторизация — поле apiKey прямо в теле запроса;
+     - ответ всегда HTTP 200, различаем по полю ok; тип ошибки — по code.
+   =========================================================================== */
+async function callApi(payload) {
+  var cfg = getConfig();
+  if (!cfg.endpoint) throw new Error('Не задан URL Web App в Настройках.');
+
+  var resp = await fetch(cfg.endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload),
+    redirect: 'follow'
+  });
+
+  var rawText = await resp.text();
+  var data = {};
+  try { data = JSON.parse(rawText); } catch (e) { /* оставим rawText как есть */ }
+
+  // Любой вызов движка попадает в Журнал (✅ — отладка интеграции).
+  logEntry(payload, { httpStatus: resp.status, data: data, rawText: rawText });
+  return { httpStatus: resp.status, data: data, rawText: rawText };
+}
+
+/* Рисует индикатор статуса рядом с кнопкой. kind: '' | 'run' | 'ok' | 'err'. */
+function setStatus(elId, kind, text) {
+  var el = $(elId);
+  el.className = 'statuslbl' + (kind ? ' ' + kind : '');
+  el.textContent = text || '';
+}
+
+/*
+ * Показывает сырой JSON-ответ в <pre> и выставляет статус ok/ошибки.
+ * Подсвечивает контрактные коды отказа PIN_REQUIRED / ACTION_NOT_ALLOWED /
+ * ACCESS_DENIED (см. docs/API.md, раздел 2).
+ */
+function renderResult(outId, statusId, res) {
+  var out = $(outId);
+  out.hidden = false;
+  out.textContent = res.rawText
+    ? (res.data && Object.keys(res.data).length ? JSON.stringify(res.data, null, 2) : res.rawText)
+    : '(пустой ответ, HTTP ' + res.httpStatus + ')';
+
+  var d = res.data || {};
+  if (d.ok === true) { setStatus(statusId, 'ok', 'ok'); return; }
+  // У ошибок авторизации есть code; у ошибок Meta/валидации — только error.
+  var code = d.code ? d.code : (res.httpStatus >= 400 ? 'HTTP ' + res.httpStatus : 'ошибка');
+  setStatus(statusId, 'err', code);
+}
+
+/* Единая обёртка для сетевых ошибок / исключений (endpoint недоступен и т.п.). */
+function renderError(outId, statusId, err) {
+  $(outId).hidden = false;
+  $(outId).textContent = 'Запрос не выполнен:\n' + (err && err.message || err);
+  setStatus(statusId, 'err', 'сбой');
+}
+
+/* ===========================================================================
+   1. ping  ✅ РАБОТАЕТ ВЖИВУЮ
+   Проверка связи и валидности ключа. accountId не требуется.
+   =========================================================================== */
+$('btn-ping').addEventListener('click', async function () {
+  setStatus('ping-status', 'run', '...');
+  $('conn-state').textContent = 'проверяю связь...';
+  try {
+    var cfg = getConfig();
+    var res = await callApi({ action: 'ping', apiKey: cfg.apiKey });
+    renderResult('ping-out', 'ping-status', res);
+    $('conn-state').textContent = (res.data && res.data.ok)
+      ? '✅ связь есть'
+      : '❌ ' + (res.data && res.data.code || 'ошибка связи');
+  } catch (err) {
+    renderError('ping-out', 'ping-status', err);
+    $('conn-state').textContent = '❌ движок недоступен';
+  }
+});
+
+/* ===========================================================================
+   ДЕМО-ДАННЫЕ  🟡 ДЕМО-ЗАГЛУШКА
+   ---------------------------------------------------------------------------
+   TODO(шаг 3): замените SAMPLE_SECTIONS на своё хранилище (БД / таблица / ваш
+   API) — см. START-HERE.md. Структура поста — то, что нужно для publishNow:
+     id, title, status (draft|scheduled|published), date (YYYY-MM-DD),
+     accountId, mediaType (photo|reels), mediaUrls[], videoUrl, caption.
+   Движок чтение чужого контента НЕ даёт (ACTION_NOT_ALLOWED) — эти данные
+   всегда живут на ВАШЕЙ стороне, не на движке.
+   =========================================================================== */
+var SAMPLE_SECTIONS = [
+  {
+    id: 'a', name: 'Раздел A',
+    desc: 'Демо-раздел. Например «Рецепты» — своя команда, свой account_id.',
+    accountId: 'sandbox',
+    posts: [
+      { id: 'a1', title: 'Карусель: 3 идеи на завтрак', status: 'draft',     date: dateOffset(2),  accountId: 'sandbox', mediaType: 'photo', mediaUrls: [], videoUrl: '', caption: 'Три быстрые идеи.\n\n#завтрак #идеи' },
+      { id: 'a2', title: 'Reels: тайминг утра',         status: 'scheduled', date: dateOffset(5),  accountId: 'sandbox', mediaType: 'reels', mediaUrls: [], videoUrl: '', caption: 'Утро за 30 секунд.' }
+    ]
+  },
+  {
+    id: 'b', name: 'Раздел B',
+    desc: 'Демо-раздел. Например «Анонсы» — другая тема/команда.',
+    accountId: 'sandbox',
+    posts: [
+      { id: 'b1', title: 'Пост-анонс мероприятия', status: 'published', date: dateOffset(-3), accountId: 'sandbox', mediaType: 'photo', mediaUrls: [], videoUrl: '', caption: 'Уже состоялось!' },
+      { id: 'b2', title: 'Фото дня',               status: 'draft',     date: dateOffset(1),  accountId: 'sandbox', mediaType: 'photo', mediaUrls: [], videoUrl: '', caption: '' }
+    ]
+  },
+  {
+    id: 'c', name: 'Раздел C',
+    desc: 'Демо-раздел. Например «Закулисье» — ещё одно направление.',
+    accountId: 'sandbox',
+    posts: [
+      { id: 'c1', title: 'Закулисье: как снимаем', status: 'scheduled', date: dateOffset(7), accountId: 'sandbox', mediaType: 'reels', mediaUrls: [], videoUrl: '', caption: 'Показываем процесс.' }
+    ]
+  }
+];
+
+/* Возвращает дату со смещением в днях от сегодня в формате YYYY-MM-DD (для демо). */
+function dateOffset(days) {
+  var d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/* Статусы постов → человекочитаемые подписи для пилюль. */
+var STATUS_LABEL = { draft: 'черновик', scheduled: 'запланирован', published: 'опубликован' };
+
+/* ===========================================================================
+   2. КОНТЕНТНЫЕ РАЗДЕЛЫ  🟡 ДЕМО-ЗАГЛУШКА
+   Рендер табов разделов и карточек постов из SAMPLE_SECTIONS.
+   =========================================================================== */
+var activeSectionId = SAMPLE_SECTIONS[0].id;
+
+function renderSectionTabs() {
+  var box = $('section-tabs');
+  box.innerHTML = '';
+  SAMPLE_SECTIONS.forEach(function (s) {
+    var b = document.createElement('button');
+    b.textContent = s.name;
+    if (s.id === activeSectionId) b.className = 'active';
+    b.addEventListener('click', function () { activeSectionId = s.id; renderSectionTabs(); renderPosts(); });
+    box.appendChild(b);
+  });
+}
+
+function currentSection() {
+  return SAMPLE_SECTIONS.filter(function (s) { return s.id === activeSectionId; })[0] || SAMPLE_SECTIONS[0];
+}
+
+function renderPosts() {
+  var sec = currentSection();
+  $('section-desc').textContent = sec.desc + '  (account_id по умолчанию: ' + sec.accountId + ')';
+  var grid = $('post-grid');
+  grid.innerHTML = '';
+  sec.posts.forEach(function (p) {
+    var card = document.createElement('div');
+    card.className = 'post-card';
+    card.innerHTML =
+      '<div class="pc-head">' +
+        '<h4>' + escapeHtml(p.title) + '</h4>' +
+        '<span class="pill ' + p.status + '">' + (STATUS_LABEL[p.status] || p.status) + '</span>' +
+      '</div>' +
+      '<div class="pc-meta">' +
+        '<span>📅 ' + p.date + '</span>' +
+        '<span>🎯 account_id: ' + escapeHtml(p.accountId) + '</span>' +
+        '<span>' + (p.mediaType === 'reels' ? '🎬 Reels' : '🖼️ Фото/карусель') + '</span>' +
+      '</div>';
+    // Клик по посту → открыть редактор с данными поста (🟡 демо).
+    card.addEventListener('click', function () { openEditor(p, sec); });
+    grid.appendChild(card);
+  });
+}
+
+/* Простой эскейп для вставки текста в innerHTML. */
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+/* «+ Пост» — создаёт пустой пост в текущем разделе (демо, не сохраняется на сервере). */
+$('btn-new-post').addEventListener('click', function () {
+  var sec = currentSection();
+  // TODO(шаг 3): сохранять новый пост в своё хранилище, а не только в память.
+  openEditor({
+    id: 'new_' + Date.now(), title: 'Новый пост', status: 'draft',
+    date: dateOffset(0), accountId: sec.accountId,
+    mediaType: 'photo', mediaUrls: [], videoUrl: '', caption: ''
+  }, sec, true);
+});
+
+/* ===========================================================================
+   3. КАЛЕНДАРЬ  🟡 данные / 🔧 авто-публикация
+   Сетка месяца; посты разложены по датам из тех же демо-данных.
+   =========================================================================== */
+var calCursor = new Date(); // первый день видимого месяца отсчитывается отсюда
+
+var MONTHS = ['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+var DOW = ['пн','вт','ср','чт','пт','сб','вс'];
+
+/* Собирает плоский список всех постов всех разделов (для календаря). */
+function allPosts() {
+  var out = [];
+  SAMPLE_SECTIONS.forEach(function (s) {
+    s.posts.forEach(function (p) { out.push({ post: p, section: s }); });
+  });
+  return out;
+}
+
+function renderCalendar() {
+  // Заголовок месяца.
+  $('cal-title').textContent = MONTHS[calCursor.getMonth()] + ' ' + calCursor.getFullYear();
+
+  // Строка дней недели (пн..вс).
+  var dowRow = $('cal-dow-row');
+  dowRow.innerHTML = '';
+  DOW.forEach(function (d) {
+    var c = document.createElement('div');
+    c.className = 'cal-dow'; c.textContent = d;
+    dowRow.appendChild(c);
+  });
+
+  var grid = $('cal-grid');
+  grid.innerHTML = '';
+
+  var year = calCursor.getFullYear(), month = calCursor.getMonth();
+  var first = new Date(year, month, 1);
+  // getDay(): 0=вс..6=сб; приводим к пн=0..вс=6.
+  var lead = (first.getDay() + 6) % 7;
+  var daysInMonth = new Date(year, month + 1, 0).getDate();
+  var todayStr = dateOffset(0);
+
+  // Пустые ячейки до первого числа.
+  for (var i = 0; i < lead; i++) {
+    var e = document.createElement('div');
+    e.className = 'cal-cell empty';
+    grid.appendChild(e);
+  }
+
+  for (var day = 1; day <= daysInMonth; day++) {
+    var ds = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+    var cell = document.createElement('div');
+    cell.className = 'cal-cell' + (ds === todayStr ? ' today' : '');
+
+    var head = document.createElement('div');
+    head.className = 'daynum'; head.textContent = day;
+    cell.appendChild(head);
+
+    // Посты этого дня.
+    allPosts().filter(function (x) { return x.post.date === ds; }).forEach(function (x) {
+      var dot = document.createElement('div');
+      dot.className = 'cal-dot ' + x.post.status;
+      dot.textContent = x.post.title;
+      cell.appendChild(dot);
+    });
+
+    // Клик по дню → открыть редактор нового поста на эту дату (🔧 «+ запланировать»).
+    (function (dateStr) {
+      cell.addEventListener('click', function () {
+        var sec = currentSection();
+        openEditor({
+          id: 'new_' + Date.now(), title: 'Новый пост', status: 'draft',
+          date: dateStr, accountId: sec.accountId,
+          mediaType: 'photo', mediaUrls: [], videoUrl: '', caption: ''
+        }, sec, true);
+      });
+    })(ds);
+
+    grid.appendChild(cell);
+  }
+}
+
+$('cal-prev').addEventListener('click', function () { calCursor.setMonth(calCursor.getMonth() - 1); renderCalendar(); });
+$('cal-next').addEventListener('click', function () { calCursor.setMonth(calCursor.getMonth() + 1); renderCalendar(); });
+
+/* ===========================================================================
+   РЕДАКТОР ПОСТА  ✅ upload + publishNow  /  🔧 Запланировать
+   =========================================================================== */
+var editingPost = null;   // ссылка на редактируемый пост (демо)
+var editingSection = null;
+var lastUpload = null;    // { url, mime } последней загрузки
+
+/* Заполняет селектор account_id значениями из Настроек. */
+function fillAccountSelect() {
+  var sel = $('ed-account');
+  var accounts = getConfig().accounts;
+  var prev = sel.value;
+  sel.innerHTML = '';
+  if (!accounts.length) {
+    var o = document.createElement('option');
+    o.value = ''; o.textContent = '— впишите account_id в Настройках —';
+    sel.appendChild(o);
+    return;
+  }
+  accounts.forEach(function (a) {
+    var o = document.createElement('option');
+    o.value = a; o.textContent = a;
+    sel.appendChild(o);
+  });
+  if (prev && accounts.indexOf(prev) >= 0) sel.value = prev;
+}
+
+/* Открывает модал редактора, заполняя поля данными поста. */
+function openEditor(post, section, isNew) {
+  editingPost = post;
+  editingSection = section;
+  lastUpload = null;
+
+  $('editor-title').textContent = isNew ? 'Новый пост' : 'Редактор поста';
+  fillAccountSelect();
+
+  // Выбрать account_id поста, если он есть в списке; иначе — первый доступный.
+  var sel = $('ed-account');
+  if (post.accountId) {
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === post.accountId) { sel.value = post.accountId; break; }
+    }
+  }
+
+  $('ed-mediatype').value = post.mediaType || 'photo';
+  $('ed-mediaurls').value = (post.mediaUrls || []).join('\n');
+  $('ed-videourl').value = post.videoUrl || '';
+  $('ed-caption').value = post.caption || '';
+  $('ed-date').value = post.date || dateOffset(0);
+
+  // Сброс опций и служебных блоков.
+  ['opt-collaborators','opt-location','opt-usertags','opt-alt','opt-cover','opt-first-comment'].forEach(function (id) { $(id).value = ''; });
+  $('opt-share-feed').checked = false;
+  $('upload-out').hidden = true; setStatus('upload-status', '', '');
+  $('btn-use-url').hidden = true;
+  $('publish-out').hidden = true; setStatus('publish-status', '', '');
+  $('schedule-callout').hidden = true;
+
+  toggleMediaType();
+  $('editor-back').classList.add('open');
+}
+
+function closeEditor() { $('editor-back').classList.remove('open'); }
+$('editor-close').addEventListener('click', closeEditor);
+$('editor-back').addEventListener('click', function (e) { if (e.target === this) closeEditor(); });
+
+/* Переключает поля фото/Reels по выбранному mediaType. */
+function toggleMediaType() {
+  var isReels = $('ed-mediatype').value === 'reels';
+  $('ed-photo-fields').hidden = isReels;
+  $('ed-video-fields').hidden = !isReels;
+  $('opt-cover').closest('label').style.opacity = isReels ? '1' : '.5';
+}
+$('ed-mediatype').addEventListener('change', toggleMediaType);
+
+/* Парсит строку «a, b; c» в массив непустых значений. */
+function parseList(s) {
+  return String(s || '').split(/[\s,;]+/).map(function (x) { return x.trim(); }).filter(Boolean);
+}
+
+/* Собирает options{} только из заполненных полей (имена — строго из docs/API.md). */
+function collectOptions() {
+  var opts = {};
+  var collaborators = parseList($('opt-collaborators').value);
+  var userTags = parseList($('opt-usertags').value);
+  if (collaborators.length) opts.collaborators = collaborators;     // максимум 3 (движок отбросит лишние)
+  if (userTags.length) opts.userTags = userTags;                    // координаты движок ставит в центр
+  if ($('opt-location').value.trim()) opts.locationId = $('opt-location').value.trim();
+  if ($('opt-alt').value.trim()) opts.altText = $('opt-alt').value.trim();
+  if ($('opt-cover').value.trim()) opts.coverUrl = $('opt-cover').value.trim();
+  if ($('opt-first-comment').value.trim()) opts.firstComment = $('opt-first-comment').value.trim();
+  if ($('opt-share-feed').checked) opts.shareToFeed = true;
+  return opts;
+}
+
+/* --------------------------------------------------------------------------
+   ✅ Загрузить медиа — action upload
+   Поля dataBase64 / mimeType / filename / folderUrl (как в reference-client.html).
+   -------------------------------------------------------------------------- */
+
+/* Читает File как чистый base64 (без префикса data:...;base64,). */
+function fileToBase64(file) {
+  return new Promise(function (resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var comma = String(reader.result).indexOf(',');
+      resolve(String(reader.result).slice(comma + 1));
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+$('btn-upload').addEventListener('click', async function () {
+  var file = $('ed-file').files[0];
+  var cfg = getConfig();
+  $('btn-use-url').hidden = true;
+
+  if (!file) { renderError('upload-out', 'upload-status', new Error('Выберите файл.')); return; }
+  if (!cfg.folderUrl) { renderError('upload-out', 'upload-status', new Error('Укажите folderUrl в Настройках.')); return; }
+
+  setStatus('upload-status', 'run', 'читаю файл...');
+  try {
+    var dataBase64 = await fileToBase64(file);
+    setStatus('upload-status', 'run', 'загружаю...');
+    var res = await callApi({
+      action: 'upload',
+      apiKey: cfg.apiKey,
+      dataBase64: dataBase64,
+      mimeType: file.type || 'application/octet-stream',  // важно: тип медиа дальше детектится по Drive MIME
+      filename: file.name,
+      folderUrl: cfg.folderUrl
+    });
+    renderResult('upload-out', 'upload-status', res);
+
+    if (res.data && res.data.ok && res.data.url) {
+      lastUpload = { url: res.data.url, mime: file.type || '' };
+      $('btn-use-url').hidden = false;
+    }
+  } catch (err) {
+    renderError('upload-out', 'upload-status', err);
+  }
+});
+
+/* «Подставить в mediaUrls / videoUrl»: переносит url из upload в нужное поле. */
+$('btn-use-url').addEventListener('click', function () {
+  if (!lastUpload || !lastUpload.url) return;
+  if (lastUpload.mime.indexOf('video/') === 0) {
+    // Видео → Reels.
+    $('ed-mediatype').value = 'reels';
+    toggleMediaType();
+    $('ed-videourl').value = lastUpload.url;
+  } else {
+    // Фото → новой строкой в mediaUrls.
+    $('ed-mediatype').value = 'photo';
+    toggleMediaType();
+    var cur = $('ed-mediaurls').value.trim();
+    $('ed-mediaurls').value = cur ? (cur + '\n' + lastUpload.url) : lastUpload.url;
+  }
+});
+
+/* --------------------------------------------------------------------------
+   ✅ Опубликовать сейчас — action publishNow
+   Маршрутизация фото/Reels, поля строго по docs/API.md.
+   Reels синхронный и долгий (до ~2.5 мин) — блокируем кнопку, чтобы не жать дважды.
+   -------------------------------------------------------------------------- */
+$('btn-publish').addEventListener('click', async function () {
+  var cfg = getConfig();
+  var isReels = $('ed-mediatype').value === 'reels';
+  var account = $('ed-account').value.trim();
+
+  // account_id шлём ВСЕГДА явно — иначе движок подставит чужой дефолт → ACCESS_DENIED.
+  if (!account) { renderError('publish-out', 'publish-status', new Error('Выберите account_id (заполните список в Настройках).')); return; }
+
+  var payload = {
+    action: 'publishNow',
+    apiKey: cfg.apiKey,
+    accountId: account,
+    mediaType: isReels ? 'reels' : 'photo',
+    caption: $('ed-caption').value
+  };
+
+  if (isReels) {
+    var videoUrl = $('ed-videourl').value.trim();
+    if (!videoUrl) { renderError('publish-out', 'publish-status', new Error('Укажите videoUrl (или загрузите видео).')); return; }
+    payload.videoUrl = videoUrl;
+  } else {
+    // mediaUrls — это МАССИВ: 1 ссылка = фото, 2+ = карусель.
+    var mediaUrls = $('ed-mediaurls').value.split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
+    if (!mediaUrls.length) { renderError('publish-out', 'publish-status', new Error('Укажите хотя бы одну ссылку в mediaUrls (или загрузите фото).')); return; }
+    payload.mediaUrls = mediaUrls;
+  }
+
+  var opts = collectOptions();
+  if (Object.keys(opts).length) payload.options = opts;
+
+  // Reels публикуется синхронно и может занять до ~2.5 мин (движок поллит готовность видео).
+  // Блокируем кнопку, чтобы случайно не отправить дважды.
+  setStatus('publish-status', 'run', isReels ? 'идёт публикация Reels (до ~2.5 мин)...' : 'идёт публикация...');
+  this.disabled = true;
+  try {
+    var res = await callApi(payload);
+    renderResult('publish-out', 'publish-status', res);
+
+    if (res.data && res.data.ok) {
+      // Успех: показать igPostId / permalink и пометить пост опубликованным (демо).
+      var extra = '\n\n--- результат ---\nigPostId: ' + (res.data.igPostId || '(нет)') +
+        '\npermalink: ' + (res.data.permalink || '(permalink необязателен — может быть пустым)');
+      $('publish-out').textContent += extra;
+      if (editingPost) {
+        editingPost.status = 'published';   // TODO(шаг 3): сохранить статус в своё хранилище
+        editingPost.mediaUrls = payload.mediaUrls || editingPost.mediaUrls;
+        editingPost.videoUrl = payload.videoUrl || editingPost.videoUrl;
+        editingPost.caption = payload.caption;
+        editingPost.mediaType = payload.mediaType;
+        editingPost.accountId = account;
+        renderPosts(); renderCalendar();
+      }
+    }
+    // На ошибке renderResult уже подсветил код (PIN_REQUIRED / ACTION_NOT_ALLOWED /
+    // ACCESS_DENIED) либо текст ошибки Meta — разбираемся по нему.
+  } catch (err) {
+    renderError('publish-out', 'publish-status', err);
+  } finally {
+    this.disabled = false;
+  }
+});
+
+/* --------------------------------------------------------------------------
+   🔧 Запланировать — ЗАГЛУШКА. Движок НЕ вызывается.
+   -------------------------------------------------------------------------- */
+
+/*
+ * scheduleStub(post) — 🔧 ВАМ ПОСТРОИТЬ.
+ *
+ * Сейчас просто помечает пост запланированным локально и показывает подсказку.
+ * Движок публикует ТОЛЬКО по команде publishNow и не имеет серверного расписания,
+ * доступного командному ключу (см. docs/API.md, раздел 5).
+ *
+ * Как это устроить по-настоящему (псевдокод вашего серверного планировщика):
+ *
+ *   // 1. Сохранили пост в свою БД со статусом 'scheduled' и временем publishAt.
+ *   // 2. Серверный cron раз в N минут выбирает «дозревшие» посты:
+ *   //
+ *   //   const due = db.posts.where({ status: 'scheduled', publishAt: { lte: now() } });
+ *   //   for (const post of due) {
+ *   //     const res = await fetch(WEBAPP_URL, {
+ *   //       method: 'POST',
+ *   //       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+ *   //       body: JSON.stringify({
+ *   //         apiKey: API_KEY,
+ *   //         action: 'publishNow',
+ *   //         accountId: post.accountId,          // всегда явно
+ *   //         mediaType: post.mediaType,
+ *   //         mediaUrls: post.mediaUrls,          // или videoUrl для Reels
+ *   //         caption: post.caption,
+ *   //         options: post.options
+ *   //       })
+ *   //     }).then(r => r.json());
+ *   //     db.posts.update(post.id, res.ok ? { status: 'published', igPostId: res.igPostId } : { status: 'error', error: res.error });
+ *   //   }
+ *   //
+ *   // Где крутить cron — это ВАША инфраструктура (свой сервер, Cloud Scheduler,
+ *   // GitHub Actions, и т.п.). См. START-HERE.md → Шаг про планировщик.
+ */
+function scheduleStub(post) {
+  // TODO(шаг 5): заменить на сохранение в своё хранилище + серверный планировщик. — см. START-HERE.md
+  post.status = 'scheduled';
+  post.date = $('ed-date').value || post.date;
+  post.caption = $('ed-caption').value;
+  post.mediaType = $('ed-mediatype').value;
+  post.accountId = $('ed-account').value.trim() || post.accountId;
+  post.mediaUrls = $('ed-mediaurls').value.split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
+  post.videoUrl = $('ed-videourl').value.trim();
+  renderPosts();
+  renderCalendar();
+}
+
+$('btn-schedule').addEventListener('click', function () {
+  if (editingPost) {
+    // Если пост новый и ещё не в разделе — добавим его в текущий раздел (демо).
+    var sec = editingSection || currentSection();
+    if (sec.posts.indexOf(editingPost) < 0) sec.posts.push(editingPost);
+    scheduleStub(editingPost);
+  }
+  // Заметный блок-подсказка: это заглушка, реальной авто-публикации нет.
+  $('schedule-callout').hidden = false;
+  $('schedule-callout').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+
+/* ===========================================================================
+   5. ЖУРНАЛ  ✅ РАБОТАЕТ ВЖИВУЮ
+   Лента сырых запросов/ответов движка. ok зелёный, ошибка красная.
+   apiKey в логе маскируется — не светим ключ.
+   =========================================================================== */
+function logEntry(payload, res) {
+  var list = $('log-list');
+  var isOk = res.data && res.data.ok === true;
+
+  // Маскируем apiKey в копии запроса.
+  var safeReq = JSON.parse(JSON.stringify(payload));
+  if (safeReq.apiKey) safeReq.apiKey = '***';
+  if (safeReq.dataBase64) safeReq.dataBase64 = '[base64 ' + safeReq.dataBase64.length + ' симв.]';
+
+  var entry = document.createElement('div');
+  entry.className = 'log-entry ' + (isOk ? 'ok' : 'err');
+  var time = new Date().toLocaleTimeString('ru-RU');
+  var codeLbl = isOk ? 'ok' : (res.data && res.data.code ? res.data.code : 'ошибка');
+
+  entry.innerHTML =
+    '<div class="le-head">' +
+      '<span class="le-action">' + escapeHtml(payload.action || '?') + '</span>' +
+      '<span>' + time + ' · HTTP ' + res.httpStatus + ' · ' + escapeHtml(codeLbl) + '</span>' +
+    '</div>' +
+    '<pre>→ запрос:\n' + escapeHtml(JSON.stringify(safeReq, null, 2)) +
+    '\n\n← ответ:\n' + escapeHtml(res.rawText || '(пусто)') + '</pre>';
+
+  list.insertBefore(entry, list.firstChild);
+}
+
+$('btn-clear-log').addEventListener('click', function () { $('log-list').innerHTML = ''; });
+
+/* ===========================================================================
+   НАВИГАЦИЯ ПО РАЗДЕЛАМ (вкладки слева)
+   =========================================================================== */
+function showView(name) {
+  document.querySelectorAll('.view').forEach(function (v) { v.classList.remove('active'); });
+  $('view-' + name).classList.add('active');
+  document.querySelectorAll('nav.sidebar .navbtn').forEach(function (b) {
+    b.classList.toggle('active', b.dataset.view === name);
+  });
+  if (name === 'calendar') renderCalendar();
+  if (name === 'sections') { renderSectionTabs(); renderPosts(); }
+}
+document.querySelectorAll('nav.sidebar .navbtn').forEach(function (b) {
+  b.addEventListener('click', function () { showView(b.dataset.view); });
+});
+
+/* ===========================================================================
+   ИНИЦИАЛИЗАЦИЯ
+   =========================================================================== */
+$('btn-save-settings').addEventListener('click', saveSettings);
+restoreSettings();
+fillAccountSelect();
+renderSectionTabs();
+renderPosts();
+renderCalendar();
+</script>
+</body>
+</html>
