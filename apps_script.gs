@@ -73,7 +73,19 @@ const COLS = {
   cover_vk:    { col: 32, header: 'Обложка VK' },
   // Instagram publish result (Этап 2.0)
   ig_post_id:  { col: 33, header: 'IG post id' },
-  ig_permalink:{ col: 34, header: 'IG ссылка' }
+  ig_permalink:{ col: 34, header: 'IG ссылка' },
+  // Instagram доп-опции публикации (2026-05-30)
+  ig_first_comment: { col: 35, header: 'IG хэштеги 1-м комментом' },
+  ig_collaborators: { col: 36, header: 'IG соавторы' },
+  ig_location_id:   { col: 37, header: 'IG локация ID' },
+  ig_location_name: { col: 38, header: 'IG локация' },
+  ig_user_tags:     { col: 39, header: 'IG отметки людей' },
+  ig_alt_text:      { col: 40, header: 'IG alt-текст' },
+  ig_share_to_feed: { col: 41, header: 'IG Reels в ленту' },
+  // Планировщик автопубликаций (2026-05-30)
+  sched_attempts:   { col: 42, header: 'План: попыток' },
+  sched_error:      { col: 43, header: 'План: ошибка' },
+  sched_payload:    { col: 44, header: 'План: снимок (JSON)' }
 };
 
 /** Запустите один раз из редактора Apps Script — добавит недостающие заголовки. */
@@ -107,12 +119,21 @@ function initSheet() {
    'text_vk','hashtags_vk','media_vk','cover_vk'].forEach(f => sheet.setColumnWidth(COLS[f].col, 180));
   sheet.setColumnWidth(COLS.ig_post_id.col, 160);
   sheet.setColumnWidth(COLS.ig_permalink.col, 260);
+  // Доп-опции IG и планировщик — узкие служебные колонки
+  ['ig_first_comment','ig_collaborators','ig_location_id','ig_location_name',
+   'ig_user_tags','ig_alt_text','ig_share_to_feed','sched_attempts','sched_error','sched_payload']
+    .forEach(f => sheet.setColumnWidth(COLS[f].col, 160));
   // Листы профилей и highlights — идемпотентно
   initProfilesSheet_();
   initHighlightsSheet_();
+  // Триггер автопубликации по расписанию (идемпотентно).
+  // Если авторизация триггеров ещё не выдана — не валим initSheet, просто сообщим.
+  let trigMsg = ' Триггер автопубликации поставлен (раз в 5 мин).';
+  try { installScheduleTrigger(); }
+  catch (e) { trigMsg = ' ⚠ Триггер НЕ поставлен (' + (e && e.message || e) + ') — запустите installScheduleTrigger() отдельно.'; }
   // Поп-ап только если есть UI-контекст (из меню таблицы). При запуске из
   // редактора Apps Script getUi() недоступен — тогда просто пишем в журнал.
-  const doneMsg = 'Готово. Колонки на месте. Листы «профили» и «highlights» созданы. Можно запускать seedPosts() или подключать пульт.';
+  const doneMsg = 'Готово. Колонки на месте. Листы «профили» и «highlights» созданы.' + trigMsg + ' Можно запускать seedPosts() или подключать пульт.';
   try {
     SpreadsheetApp.getUi().alert(doneMsg);
   } catch (_) {
@@ -328,6 +349,14 @@ function handle_(payload) {
       const r = deleteHighlight_(payload.id);
       return json_({ ok: true, deleted: r });
     }
+    if (payload.action === 'schedulePost') {
+      const r = schedulePost_(payload.rowIndex, payload.snapshot);
+      return json_({ ok: true, scheduled: r });
+    }
+    if (payload.action === 'unschedulePost') {
+      const r = unschedulePost_(payload.rowIndex);
+      return json_({ ok: true, unscheduled: r });
+    }
     return json_({ ok: false, error: 'unknown action: ' + payload.action });
   } catch (err) {
     return json_({ ok: false, error: String(err && err.message || err) });
@@ -365,7 +394,16 @@ function readAll_() {
       notes: String(row[COLS.notes.col - 1] || ''),
       platforms: String(row[COLS.platforms.col - 1] || ''),
       ig_post_id: String(row[COLS.ig_post_id.col - 1] || ''),
-      ig_permalink: String(row[COLS.ig_permalink.col - 1] || '')
+      ig_permalink: String(row[COLS.ig_permalink.col - 1] || ''),
+      ig_first_comment: String(row[COLS.ig_first_comment.col - 1] || ''),
+      ig_collaborators: String(row[COLS.ig_collaborators.col - 1] || ''),
+      ig_location_id: String(row[COLS.ig_location_id.col - 1] || ''),
+      ig_location_name: String(row[COLS.ig_location_name.col - 1] || ''),
+      ig_user_tags: String(row[COLS.ig_user_tags.col - 1] || ''),
+      ig_alt_text: String(row[COLS.ig_alt_text.col - 1] || ''),
+      ig_share_to_feed: String(row[COLS.ig_share_to_feed.col - 1] || ''),
+      sched_attempts: Number(row[COLS.sched_attempts.col - 1]) || 0,
+      sched_error: String(row[COLS.sched_error.col - 1] || '')
     };
     // Override-поля по платформам
     ['fb','tg','tt','yt','vk'].forEach(function(s) {
@@ -756,26 +794,121 @@ function igGraphPost_(url, payload) {
 }
 
 /** Создаёт media-контейнер для одного фото. Возвращает creation_id. */
-function igCreateImageContainer_(creds, imageUrl, caption, isCarouselItem) {
+/** Разбирает «@a, @b c» в массив чистых username без @. */
+function igParseHandles_(s) {
+  return String(s || '').split(/[\s,;]+/)
+    .map(function (x) { return x.replace(/^@+/, '').trim(); })
+    .filter(Boolean);
+}
+
+/** Строка-флаг → boolean (true/yes/1/on/да). */
+function igBool_(s) {
+  return /^(true|yes|1|on|да)$/i.test(String(s || '').trim());
+}
+
+/** Соавторы и геометка — для одиночного фото, родителя карусели и Reels (НЕ для детей карусели). */
+function igAddParentOpts_(payload, opts) {
+  if (!opts) return;
+  if (opts.collaborators && opts.collaborators.length) {
+    // Instagram разрешает максимум 3 соавтора — лишних тихо отбрасываем.
+    payload.collaborators = JSON.stringify(opts.collaborators.slice(0, 3));
+  }
+  if (opts.locationId) payload.location_id = String(opts.locationId);
+}
+
+/** Отметки людей и alt-текст — для фото-контейнеров (одиночное фото и дочерние карусели). */
+function igAddPhotoOpts_(payload, opts) {
+  if (!opts) return;
+  if (opts.userTags && opts.userTags.length) {
+    payload.user_tags = JSON.stringify(opts.userTags.map(function (u) {
+      return { username: u, x: 0.5, y: 0.5 };
+    }));
+  }
+  if (opts.altText) payload.alt_text = String(opts.altText);
+}
+
+function igCreateImageContainer_(creds, imageUrl, caption, isCarouselItem, opts) {
   const payload = { image_url: imageUrl, access_token: creds.token };
   if (caption) payload.caption = caption;
   if (isCarouselItem) payload.is_carousel_item = 'true';
+  igAddPhotoOpts_(payload, opts);                 // отметки/alt — и на одиночном, и на детях
+  if (!isCarouselItem) igAddParentOpts_(payload, opts); // соавторы/гео — только не на детях
   const data = igGraphPost_(GRAPH_BASE + GRAPH_VERSION + '/' + creds.igUserId + '/media', payload);
   if (!data.id) throw new Error('Instagram: контейнер создан без id');
   return data.id;
 }
 
 /** Собирает контейнер карусели из готовых дочерних id. Возвращает creation_id. */
-function igCreateCarouselContainer_(creds, childIds, caption) {
+function igCreateCarouselContainer_(creds, childIds, caption, opts) {
   const payload = {
     media_type: 'CAROUSEL',
     children: childIds.join(','),
     access_token: creds.token
   };
   if (caption) payload.caption = caption;
+  igAddParentOpts_(payload, opts);                // соавторы/гео — на родителе карусели
   const data = igGraphPost_(GRAPH_BASE + GRAPH_VERSION + '/' + creds.igUserId + '/media', payload);
   if (!data.id) throw new Error('Instagram: контейнер карусели создан без id');
   return data.id;
+}
+
+/** Отправляет первый комментарий к опубликованному медиа (хэштеги). Не критично. */
+function igPostComment_(creds, mediaId, message) {
+  if (!message) return;
+  try {
+    igGraphPost_(GRAPH_BASE + GRAPH_VERSION + '/' + mediaId + '/comments', {
+      message: message, access_token: creds.token
+    });
+  } catch (e) {
+    Logger.log('Первый комментарий не отправлен: ' + (e && e.message || e));
+  }
+}
+
+/**
+ * Собирает опции IG-публикации из строки листа.
+ * Возвращает объект, понятный igAddParentOpts_/igAddPhotoOpts_ и Reels.
+ */
+function igOptionsFromRow_(rowIndex) {
+  const sheet = getSheet_();
+  const get = function (key) { return String(sheet.getRange(rowIndex, COLS[key].col).getValue() || '').trim(); };
+  const shareRaw = get('ig_share_to_feed').toLowerCase();
+  let shareToFeed = null; // null = не слать параметр (дефолт API = в ленте)
+  if (/^(false|no|0|нет)$/.test(shareRaw)) shareToFeed = false;
+  else if (/^(true|yes|1|да)$/.test(shareRaw)) shareToFeed = true;
+  const coverCell = get('cover').split('#')[0].trim();
+  const coverId = extractDriveId_(coverCell);
+  return {
+    collaborators: igParseHandles_(get('ig_collaborators')),
+    locationId: get('ig_location_id'),
+    userTags: igParseHandles_(get('ig_user_tags')),
+    altText: get('ig_alt_text'),
+    coverUrl: coverId ? driveDirectUrl_(coverId, 1440) : coverCell,
+    shareToFeed: shareToFeed,
+    firstComment: ''
+  };
+}
+
+/**
+ * Единый сборщик подписи + опций для планировщика и fallback.
+ * При включённом «хэштеги первым комментом» подпись идёт без хэштегов,
+ * а хэштеги уходят в options.firstComment.
+ */
+function buildCaptionAndOptions_(rowIndex) {
+  const sheet = getSheet_();
+  const mediaCell = String(sheet.getRange(rowIndex, COLS.media.col).getValue() || '');
+  const mediaUrls = mediaCell.split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
+  const txt = String(sheet.getRange(rowIndex, COLS.text.col).getValue() || '').trim();
+  const tags = String(sheet.getRange(rowIndex, COLS.hashtags.col).getValue() || '').trim();
+  const firstCommentOn = igBool_(sheet.getRange(rowIndex, COLS.ig_first_comment.col).getValue());
+  const options = igOptionsFromRow_(rowIndex);
+  let caption;
+  if (firstCommentOn && tags) {
+    caption = txt;
+    options.firstComment = tags;
+  } else {
+    caption = txt + (tags ? '\n\n' + tags : '');
+  }
+  return { caption: caption, mediaUrls: mediaUrls, options: options };
 }
 
 /** Публикует готовый контейнер. Возвращает id опубликованного медиа. */
@@ -815,19 +948,17 @@ function publishInstagram_(payload) {
   const rowIndex = payload.rowIndex;
   let urls = payload.mediaUrls;
   let caption = payload.caption;
+  let options = payload.options;
 
-  // Fallback из строки листа, если фронт не передал
-  if ((!urls || !urls.length) && rowIndex) {
-    const sheet = getSheet_();
-    const mediaCell = String(sheet.getRange(rowIndex, COLS.media.col).getValue() || '');
-    urls = mediaCell.split(/\n+/);
-    if (caption === undefined || caption === null) {
-      const txt = String(sheet.getRange(rowIndex, COLS.text.col).getValue() || '').trim();
-      const tags = String(sheet.getRange(rowIndex, COLS.hashtags.col).getValue() || '').trim();
-      caption = txt + (tags ? '\n\n' + tags : '');
-    }
+  // Fallback из строки листа для всего, чего не передал фронт
+  if (rowIndex && ((!urls || !urls.length) || caption === undefined || caption === null || !options)) {
+    const built = buildCaptionAndOptions_(rowIndex);
+    if (!urls || !urls.length) urls = built.mediaUrls;
+    if (caption === undefined || caption === null) caption = built.caption;
+    if (!options) options = built.options;
   }
   caption = String(caption || '');
+  options = options || {};
 
   // Чистим URL (убираем #-метаданные имени/размера)
   const cleaned = (urls || [])
@@ -838,7 +969,7 @@ function publishInstagram_(payload) {
   // Тип файла определяем по Drive MIME (надёжно для ссылок без расширения).
   const videoCount = cleaned.filter(igIsDriveVideo_).length;
   if (videoCount) {
-    if (cleaned.length === 1) return igDoReels_(creds, cleaned[0], caption, rowIndex);
+    if (cleaned.length === 1) return igDoReels_(creds, cleaned[0], caption, rowIndex, options);
     throw new Error('Видео публикуется только по одному (как Reels). Оставьте в «Медиа» один видеофайл или только фото.');
   }
 
@@ -850,15 +981,18 @@ function publishInstagram_(payload) {
 
   let creationId;
   if (imageUrls.length === 1) {
-    creationId = igCreateImageContainer_(creds, imageUrls[0], caption, false);
+    creationId = igCreateImageContainer_(creds, imageUrls[0], caption, false, options);
   } else {
+    // Дети карусели получают только отметки/alt; соавторы/гео — на родителе.
+    const childOpts = { userTags: options.userTags, altText: options.altText };
     const children = imageUrls.map(function (url) {
-      return igCreateImageContainer_(creds, url, '', true);
+      return igCreateImageContainer_(creds, url, '', true, childOpts);
     });
-    creationId = igCreateCarouselContainer_(creds, children, caption);
+    creationId = igCreateCarouselContainer_(creds, children, caption, options);
   }
 
   const igPostId = igPublishContainer_(creds, creationId);
+  igPostComment_(creds, igPostId, options.firstComment);
   const permalink = igPermalink_(creds, igPostId);
 
   // Запись результата в строку
@@ -889,9 +1023,15 @@ function igIsDriveVideo_(cleanUrl) {
 }
 
 /** Создаёт REELS-контейнер для одного видео. Возвращает creation_id. */
-function igCreateReelsContainer_(creds, videoUrl, caption) {
+function igCreateReelsContainer_(creds, videoUrl, caption, opts) {
   const payload = { media_type: 'REELS', video_url: videoUrl, access_token: creds.token };
   if (caption) payload.caption = caption;
+  if (opts) {
+    igAddParentOpts_(payload, opts);              // соавторы/гео
+    if (opts.coverUrl) payload.cover_url = String(opts.coverUrl); // своя обложка Reels
+    if (opts.shareToFeed === true) payload.share_to_feed = 'true';
+    else if (opts.shareToFeed === false) payload.share_to_feed = 'false';
+  }
   const data = igGraphPost_(GRAPH_BASE + GRAPH_VERSION + '/' + creds.igUserId + '/media', payload);
   if (!data.id) throw new Error('Instagram: REELS-контейнер создан без id');
   return data.id;
@@ -936,24 +1076,23 @@ function publishInstagramReels_(payload) {
   const rowIndex = payload.rowIndex;
   let videoUrl = payload.videoUrl;
   let caption = payload.caption;
+  let options = payload.options;
 
   // Fallback из строки листа, если фронт не передал
-  if (!videoUrl && rowIndex) {
-    const sheet = getSheet_();
-    const mediaCell = String(sheet.getRange(rowIndex, COLS.media.col).getValue() || '');
+  if (rowIndex && (!videoUrl || caption === undefined || caption === null || !options)) {
+    const built = buildCaptionAndOptions_(rowIndex);
     const VIDEO_RE = /\.(mp4|mov|m4v|webm|avi|mkv)(\?|#|$)/i;
-    videoUrl = mediaCell.split(/\n+/).map(function (s) { return s.trim(); }).filter(Boolean)
-      .filter(function (u) { return VIDEO_RE.test(u); })[0] || '';
-    if (caption === undefined || caption === null) {
-      const txt = String(sheet.getRange(rowIndex, COLS.text.col).getValue() || '').trim();
-      const tags = String(sheet.getRange(rowIndex, COLS.hashtags.col).getValue() || '').trim();
-      caption = txt + (tags ? '\n\n' + tags : '');
+    if (!videoUrl) {
+      videoUrl = built.mediaUrls.filter(function (u) { return VIDEO_RE.test(u); })[0] || '';
     }
+    if (caption === undefined || caption === null) caption = built.caption;
+    if (!options) options = built.options;
   }
   caption = String(caption || '');
+  options = options || {};
   const clean = String(videoUrl || '').split('#')[0].trim();
   if (!clean) throw new Error('Нет видео для публикации.');
-  return igDoReels_(creds, clean, caption, rowIndex);
+  return igDoReels_(creds, clean, caption, rowIndex, options);
 }
 
 /**
@@ -961,7 +1100,15 @@ function publishInstagramReels_(payload) {
  * готовности → media_publish → permalink → запись результата в строку.
  * Переиспользуется и явным action, и авто-детектом в publishInstagram_.
  */
-function igDoReels_(creds, cleanVideoUrl, caption, rowIndex) {
+function igDoReels_(creds, cleanVideoUrl, caption, rowIndex, options) {
+  options = options || {};
+  // Обложку Reels фронт не считает — берём из строки (колонка «Обложка»).
+  if (!options.coverUrl && rowIndex) {
+    const coverCell = String(getSheet_().getRange(rowIndex, COLS.cover.col).getValue() || '').split('#')[0].trim();
+    const coverId = extractDriveId_(coverCell);
+    if (coverId) options.coverUrl = driveDirectUrl_(coverId, 1440);
+    else if (coverCell) options.coverUrl = coverCell;
+  }
   const id = extractDriveId_(cleanVideoUrl);
 
   // Файлы >100 МБ Drive не отдаёт напрямую (заглушка антивируса) — Meta качает
@@ -981,7 +1128,7 @@ function igDoReels_(creds, cleanVideoUrl, caption, rowIndex) {
   let creationId;
   for (let tryNo = 1; tryNo <= 2; tryNo++) {
     try {
-      creationId = igCreateReelsContainer_(creds, directUrl, caption);
+      creationId = igCreateReelsContainer_(creds, directUrl, caption, options);
       igWaitContainerReady_(creds, creationId);
       break;
     } catch (e) {
@@ -995,6 +1142,7 @@ function igDoReels_(creds, cleanVideoUrl, caption, rowIndex) {
   }
 
   const igPostId = igPublishContainer_(creds, creationId);
+  igPostComment_(creds, igPostId, options.firstComment);
   const permalink = igPermalink_(creds, igPostId);
 
   if (rowIndex) {
@@ -1005,6 +1153,202 @@ function igDoReels_(creds, cleanVideoUrl, caption, rowIndex) {
   }
 
   return { igPostId: igPostId, permalink: permalink };
+}
+
+// ===================================================================
+// Планировщик автопубликаций — план plans/2026-05-30-zaplanirovannye-publikacii.md
+// ===================================================================
+
+const SCHED_TRIGGER_FN = 'runScheduledPublishing';
+const SCHED_MAX_ATTEMPTS = 3;             // попыток на пост, потом status=error
+const SCHED_TIME_BUDGET_MS = 4.5 * 60000; // запас до лимита Apps Script (6 мин)
+
+/**
+ * Идемпотентно ставит time-driven триггер автопубликации раз в 5 минут.
+ * Вызывается из initSheet(). Старые одноимённые триггеры удаляются.
+ */
+function installScheduleTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === SCHED_TRIGGER_FN) ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger(SCHED_TRIGGER_FN).timeBased().everyMinutes(5).create();
+}
+
+/**
+ * Тик планировщика. Находит посты status='scheduled' с наступившим временем
+ * и публикует их в Instagram. При сбое — повтор на следующих тиках до
+ * SCHED_MAX_ATTEMPTS, затем status='error' + причина в sched_error.
+ * LockService защищает от наложения с длинным Reels-поллингом.
+ */
+function runScheduledPublishing() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(0)) return; // предыдущий тик ещё работает — пропускаем
+  const startedAt = new Date().getTime();
+  try {
+    const sheet = getSheet_();
+    const lastRow = sheet.getLastRow();
+    if (lastRow < FIRST_DATA_ROW) return;
+    const now = new Date().getTime();
+    const lastCol = Math.max.apply(null, Object.values(COLS).map(function (c) { return c.col; }));
+    const values = sheet.getRange(FIRST_DATA_ROW, 1, lastRow - FIRST_DATA_ROW + 1, lastCol).getValues();
+
+    // Собираем «созревшие» запланированные строки, сортируем по времени
+    const due = [];
+    values.forEach(function (row, i) {
+      if (String(row[COLS.status.col - 1] || '') !== 'scheduled') return;
+      const dt = row[COLS.datetime.col - 1];
+      const when = dt instanceof Date ? dt.getTime() : Date.parse(dt);
+      if (!when || when > now) return;
+      due.push({ rowIndex: FIRST_DATA_ROW + i, when: when });
+    });
+    due.sort(function (a, b) { return a.when - b.when; });
+
+    for (let k = 0; k < due.length; k++) {
+      if (new Date().getTime() - startedAt > SCHED_TIME_BUDGET_MS) break; // не упираемся в лимит
+      publishScheduledRow_(sheet, due[k].rowIndex);
+    }
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Публикует одну запланированную строку, ведёт счётчик попыток и ошибки. */
+function publishScheduledRow_(sheet, rowIndex) {
+  try {
+    // Снимок, замороженный при планировании (то, что видел Дмитрий в превью):
+    // подпись, медиа, опции. Если снимка нет — publishInstagram_ соберёт из строки.
+    const payload = { rowIndex: rowIndex };
+    const snapRaw = String(sheet.getRange(rowIndex, COLS.sched_payload.col).getValue() || '');
+    if (snapRaw) {
+      try {
+        const snap = JSON.parse(snapRaw);
+        if (snap.caption !== undefined) payload.caption = snap.caption;
+        if (snap.mediaUrls) payload.mediaUrls = snap.mediaUrls;
+        if (snap.options) payload.options = snap.options;
+      } catch (_) {}
+    }
+    // publishInstagram_ сам определит фото/карусель/Reels по Drive MIME
+    // и при успехе проставит published + ссылку.
+    publishInstagram_(payload);
+    sheet.getRange(rowIndex, COLS.sched_error.col).setValue('');
+  } catch (err) {
+    const attempts = (Number(sheet.getRange(rowIndex, COLS.sched_attempts.col).getValue()) || 0) + 1;
+    sheet.getRange(rowIndex, COLS.sched_attempts.col).setValue(attempts);
+    const msg = String(err && err.message || err);
+    if (attempts >= SCHED_MAX_ATTEMPTS) {
+      sheet.getRange(rowIndex, COLS.status.col).setValue('error');
+      sheet.getRange(rowIndex, COLS.sched_error.col).setValue(
+        'После ' + attempts + ' попыток: ' + msg);
+    } else {
+      // оставляем scheduled — повтор на следующем тике
+      sheet.getRange(rowIndex, COLS.sched_error.col).setValue(
+        'Попытка ' + attempts + '/' + SCHED_MAX_ATTEMPTS + ': ' + msg);
+    }
+  }
+}
+
+/**
+ * Action: пометить пост на автопубликацию. Проверяет медиа и будущее время.
+ * snapshot (опц.) = { caption, mediaUrls, options } — то, что видел Дмитрий
+ * в превью; замораживается в строку, чтобы пост улетел ровно в этом виде.
+ */
+function schedulePost_(rowIndex, snapshot) {
+  if (!rowIndex || rowIndex < FIRST_DATA_ROW) throw new Error('Bad rowIndex: ' + rowIndex);
+  const sheet = getSheet_();
+  const media = String(sheet.getRange(rowIndex, COLS.media.col).getValue() || '').trim();
+  if (!media) throw new Error('Нет медиа — нечего публиковать. Пусть Аня прикрепит картинку или видео.');
+  const dt = sheet.getRange(rowIndex, COLS.datetime.col).getValue();
+  const when = dt instanceof Date ? dt.getTime() : Date.parse(dt);
+  if (!when) throw new Error('Не задана дата/время публикации.');
+  sheet.getRange(rowIndex, COLS.status.col).setValue('scheduled');
+  sheet.getRange(rowIndex, COLS.sched_attempts.col).setValue(0);
+  sheet.getRange(rowIndex, COLS.sched_error.col).setValue('');
+  sheet.getRange(rowIndex, COLS.sched_payload.col).setValue(snapshot ? JSON.stringify(snapshot) : '');
+  return { rowIndex: rowIndex, when: when, past: when <= new Date().getTime() };
+}
+
+/** Action: снять пост с автопубликации (вернуть в «Готов»). */
+function unschedulePost_(rowIndex) {
+  if (!rowIndex || rowIndex < FIRST_DATA_ROW) throw new Error('Bad rowIndex: ' + rowIndex);
+  const sheet = getSheet_();
+  sheet.getRange(rowIndex, COLS.status.col).setValue('ready');
+  sheet.getRange(rowIndex, COLS.sched_attempts.col).setValue(0);
+  sheet.getRange(rowIndex, COLS.sched_error.col).setValue('');
+  sheet.getRange(rowIndex, COLS.sched_payload.col).setValue('');
+  return { rowIndex: rowIndex };
+}
+
+/**
+ * ДИАГНОСТИКА ТОКЕНА (запускать из редактора Apps Script: Run → diagToken).
+ * Ничего не публикует и ничего не меняет. Спрашивает у Meta /debug_token про
+ * текущий IG_ACCESS_TOKEN и печатает в лог:
+ *   - тип (PAGE / USER / …),
+ *   - валиден ли сейчас,
+ *   - expires_at          — когда истекает САМ токен (0 = никогда),
+ *   - data_access_expires_at — когда истекает доступ к данным (ограничение
+ *     Facebook Login, ~90 дней; может стоять даже у «вечного» page-токена),
+ *   - права (scopes).
+ *
+ * Секрет не покидает Apps Script: app access token собирается из
+ * IG_APP_ID|IG_APP_SECRET прямо здесь и используется для самого запроса.
+ */
+function diagToken() {
+  const props = PropertiesService.getScriptProperties();
+  const token = props.getProperty('IG_ACCESS_TOKEN');
+  const appId = props.getProperty('IG_APP_ID');
+  const appSecret = props.getProperty('IG_APP_SECRET');
+  if (!token) throw new Error('Нет IG_ACCESS_TOKEN в Script Properties.');
+  if (!appId || !appSecret) {
+    throw new Error('Нет IG_APP_ID или IG_APP_SECRET в Script Properties (нужны, чтобы проверить токен).');
+  }
+
+  const appAccessToken = appId + '|' + appSecret;
+  const url = GRAPH_BASE + GRAPH_VERSION + '/debug_token'
+    + '?input_token=' + encodeURIComponent(token)
+    + '&access_token=' + encodeURIComponent(appAccessToken);
+
+  const resp = UrlFetchApp.fetch(url, { method: 'get', muteHttpExceptions: true });
+  const code = resp.getResponseCode();
+  const text = resp.getContentText();
+  let parsed = {};
+  try { parsed = JSON.parse(text); } catch (_) {}
+
+  if (code !== 200 || !parsed.data) {
+    Logger.log('❌ Не удалось проверить токен. HTTP %s. Ответ: %s', code, text);
+    return text;
+  }
+
+  const d = parsed.data;
+  const fmt = function (ts) {
+    const n = Number(ts);
+    if (!n) return 'Никогда (0)';
+    const date = new Date(n * 1000);
+    const days = Math.round((n * 1000 - Date.now()) / 86400000);
+    return Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm')
+      + ' (через ' + days + ' дн.)';
+  };
+
+  Logger.log('=== Диагностика токена IG_ACCESS_TOKEN ===');
+  Logger.log('Тип:               %s', d.type || '(нет)');
+  Logger.log('Валиден сейчас:    %s', d.is_valid ? 'да ✅' : 'НЕТ ❌');
+  Logger.log('App ID:            %s', d.app_id || '(нет)');
+  Logger.log('Истекает токен:    %s', fmt(d.expires_at));
+  Logger.log('Истекает доступ:   %s', fmt(d.data_access_expires_at));
+  Logger.log('Права (scopes):    %s', (d.scopes || []).join(', '));
+  if (d.error) Logger.log('⚠️ Ошибка токена: %s', JSON.stringify(d.error));
+
+  const tokenNever = !Number(d.expires_at);
+  const dataNever = !Number(d.data_access_expires_at);
+  if (d.is_valid && tokenNever && dataNever) {
+    Logger.log('➡️ ВЫВОД: токен бессрочный по обоим полям. По сроку публикация не отвалится.');
+  } else if (d.is_valid && tokenNever && !dataNever) {
+    Logger.log('➡️ ВЫВОД: сам токен не истекает, НО доступ к данным истекает (дата выше). '
+      + 'Это ограничение Facebook Login. Для гарантированной вечности — System User токен.');
+  } else {
+    Logger.log('➡️ ВЫВОД: токен истекает или невалиден. Нужен System User токен (вечный) '
+      + 'либо авто-обновление по таймеру.');
+  }
+  return text;
 }
 
 /**

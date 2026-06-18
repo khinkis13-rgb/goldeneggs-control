@@ -173,6 +173,13 @@
   .pm-ig-ok{background:rgba(60,160,90,.14);border:1px solid #3ca05a}
   .pm-ig-ok a{color:var(--gold);font-weight:600}
   .pm-ig-err{background:rgba(200,74,58,.14);border:1px solid #c84a3a}
+  .pm-ig-opts{font-size:13px;color:var(--muted,#9aa);line-height:1.5}
+  .pm-ig-sched{font-size:14px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-radius:10px;padding:10px 12px}
+  .pm-ig-sched.scheduled{background:rgba(220,170,60,.14);border:1px solid var(--gold)}
+  .pm-ig-sched.error{background:rgba(200,74,58,.14);border:1px solid #c84a3a}
+  .ig-opts{border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin-top:10px}
+  .ig-opts summary{cursor:pointer;font-weight:600}
+  .ig-opts input[type="text"],.ig-opts textarea{width:100%}
   @media (max-width:720px){
     .pm-grid{grid-template-columns:1fr}
     .pm-text-area{min-height:180px}
@@ -772,6 +779,7 @@
   .pin-box .pin-err{color:var(--danger);font-size:13px;min-height:18px;margin:8px 0 0;text-align:center}
   .pin-box .pin-actions{margin-top:14px;display:flex;justify-content:flex-end}
   .pin-box .pin-actions .btn.primary{padding:9px 18px}
+  .author-sign{font-size:12px;opacity:0.6;text-align:center;margin:1rem 0;color:inherit}
 </style>
 </head>
 <body>
@@ -891,9 +899,12 @@ const OVERRIDE_FIELDS = (() => {
 
 const DEFAULT_FIELDS = Object.assign({
   text:"", hashtags:"", media:"", cover:"", owner:"Аня",
-  status:"draft", // draft | review | ready | published
+  status:"draft", // draft | review | ready | scheduled | published | error
   platforms:"Instagram",
   notes:"", // Заметки от Ани Дмитрию — НЕ публикуется, только справочно
+  // Доп-опции публикации в Instagram (2026-05-30)
+  ig_first_comment:"", ig_collaborators:"", ig_location_id:"", ig_location_name:"",
+  ig_user_tags:"", ig_alt_text:"", ig_share_to_feed:"",
   checks:{visual:false, text:false, geo:false, hashtags:false, link:false, sound:false}
 }, OVERRIDE_FIELDS);
 
@@ -947,9 +958,46 @@ const PLATFORM_ACTIONS = {
   YouTube:{open:"Открыть YouTube Studio", url:"https://studio.youtube.com/", create:"https://studio.youtube.com/"},
   VK:{open:"Открыть VK", url:"https://vk.com/", create:"https://vk.com/"}
 };
-const STATUS_LABEL = {draft:"Черновик", review:"На ревью", ready:"Готов", published:"Опубликован", deleted:"Удалён"};
-const STATUS_CLASS = {draft:"", review:"warn", ready:"ok", published:"gold", deleted:"red"};
+const STATUS_LABEL = {draft:"Черновик", review:"На ревью", ready:"Готов", scheduled:"Запланирован", published:"Опубликован", error:"Ошибка", deleted:"Удалён"};
+const STATUS_CLASS = {draft:"", review:"warn", ready:"ok", scheduled:"warn", published:"gold", error:"red", deleted:"red"};
 const VISIBLE_STATUSES = ["draft","review","ready","published"];
+// scheduled/error не в выпадающем списке — их ставит планировщик/кнопка.
+// Но если пост уже в таком статусе, показать его опцией, чтобы select не сбросил значение.
+function statusOptionsHtml(p){
+  const list = VISIBLE_STATUSES.includes(p.status) ? VISIBLE_STATUSES : VISIBLE_STATUSES.concat([p.status]);
+  return list.map(k=>`<option value="${k}" ${p.status===k?"selected":""}>${STATUS_LABEL[k]||k}</option>`).join("");
+}
+function igBoolFront(v){ return /^(true|yes|1|on|да)$/i.test(String(v||"").trim()); }
+// Блок доп-опций Instagram в карточке заполнения. Только когда выбран Instagram.
+function igOptionsBlock(p){
+  const hasAny = !!(p.ig_collaborators || p.ig_location_id || p.ig_location_name || p.ig_user_tags || p.ig_alt_text || igBoolFront(p.ig_first_comment));
+  return `
+    <details class="ig-opts"${hasAny?" open":""}>
+      <summary>⚙️ Опции Instagram${hasAny?" · заполнено":""}</summary>
+      <div class="small" style="margin:6px 0 10px">Дополнительно к посту. Музыку из библиотеки Instagram через API добавить нельзя — она вшивается в видео при монтаже.</div>
+
+      <label class="tags-toggle"><input type="checkbox" data-field-check="ig_first_comment" data-id="${p.id}" ${igBoolFront(p.ig_first_comment)?"checked":""}> Хэштеги — первым комментарием <span class="small">(подпись остаётся чистой)</span></label>
+
+      <label class="tags-toggle"><input type="checkbox" data-field-check="ig_share_to_feed" data-on="" data-off="false" data-id="${p.id}" ${p.ig_share_to_feed!=="false"?"checked":""}> Reels также в ленту профиля <span class="small">(по умолчанию да)</span></label>
+
+      <div class="af-label" style="margin-top:10px">🤝 Соавторы</div>
+      <input type="text" data-field="ig_collaborators" data-id="${p.id}" value="${escape(p.ig_collaborators||"")}" placeholder="@account1, @account2">
+      <div class="small">Пост выйдет в ленте и у них тоже — нужно их подтверждение в Instagram.</div>
+
+      <div class="af-label" style="margin-top:10px">📍 Геолокация</div>
+      <input type="text" data-field="ig_location_name" data-id="${p.id}" value="${escape(p.ig_location_name||"")}" placeholder="Название места (для себя)">
+      <input type="text" data-field="ig_location_id" data-id="${p.id}" value="${escape(p.ig_location_id||"")}" placeholder="ID места (Facebook Page ID локации)" style="margin-top:6px">
+      <div class="small">ID = Facebook Page ID места. Без ID геометка не проставится (ограничение API).</div>
+
+      <div class="af-label" style="margin-top:10px">🏷 Отметить людей на фото</div>
+      <input type="text" data-field="ig_user_tags" data-id="${p.id}" value="${escape(p.ig_user_tags||"")}" placeholder="@actor1, @actor2">
+      <div class="small">Только для фото/карусели. Ставятся по центру кадра.</div>
+
+      <div class="af-label" style="margin-top:10px">♿ Alt-текст (описание картинки)</div>
+      <textarea data-field="ig_alt_text" data-id="${p.id}" placeholder="Короткое описание изображения для незрячих">${escape(p.ig_alt_text||"")}</textarea>
+    </details>
+  `;
+}
 
 /* ===== STATE ===== */
 const LS_KEY = "goldeneggs_dashboard_v1";
@@ -1403,7 +1451,7 @@ function postCard(p){
       </div>
       <div>
         <select class="status-sel" data-id="${p.id}" data-status="${p.status||"draft"}">
-          ${VISIBLE_STATUSES.map(k=>`<option value="${k}" ${p.status===k?"selected":""}>${STATUS_LABEL[k]}</option>`).join("")}
+          ${statusOptionsHtml(p)}
         </select>
       </div>
     </div>
@@ -1581,6 +1629,57 @@ function buildFullTextFor(p, plat){
   const tags = tagsEnabled(p) ? (c.hashtags || state.settings.baseHashtags || "").trim() : "";
   return (c.text||"").trim() + (tags?("\n\n"+tags):"");
 }
+function parseHandlesFront(s){
+  return String(s||"").split(/[\s,;]+/).map(x=>x.replace(/^@+/,"").trim()).filter(Boolean);
+}
+// Подпись + доп-опции IG для отправки на бэкенд. При «хэштеги первым комментом»
+// подпись идёт без хэштегов, а хэштеги уходят в options.firstComment.
+function igCaptionAndExtras(p){
+  const c = contentForPlatform(p, "Instagram");
+  const text = (c.text||"").trim();
+  const tags = tagsEnabled(p) ? (c.hashtags || state.settings.baseHashtags || "").trim() : "";
+  const options = {
+    collaborators: parseHandlesFront(p.ig_collaborators),
+    locationId: (p.ig_location_id||"").trim(),
+    userTags: parseHandlesFront(p.ig_user_tags),
+    altText: (p.ig_alt_text||"").trim(),
+    shareToFeed: p.ig_share_to_feed==="false" ? false : (p.ig_share_to_feed==="true" ? true : null),
+    firstComment: ""
+  };
+  let caption;
+  if(igBoolFront(p.ig_first_comment) && tags){ caption = text; options.firstComment = tags; }
+  else { caption = text + (tags ? "\n\n"+tags : ""); }
+  return { caption: caption, options: options };
+}
+// Краткая сводка включённых IG-опций для превью в модалке публикации.
+function igOptionsSummary(p){
+  const parts = [];
+  if((p.cover||"").trim()) parts.push("обложка Reels");
+  if(igBoolFront(p.ig_first_comment)) parts.push("хэштеги 1-м комментом");
+  const collab = parseHandlesFront(p.ig_collaborators);
+  if(collab.length) parts.push("соавторы: " + collab.map(x=>"@"+x).join(", "));
+  if((p.ig_location_name||p.ig_location_id||"").trim()) parts.push("гео: " + escape((p.ig_location_name||p.ig_location_id).trim()));
+  const tags = parseHandlesFront(p.ig_user_tags);
+  if(tags.length) parts.push("отметки: " + tags.map(x=>"@"+x).join(", "));
+  if((p.ig_alt_text||"").trim()) parts.push("alt-текст");
+  if(p.ig_share_to_feed==="false") parts.push("Reels НЕ в ленту");
+  return parts;
+}
+// Контрол планирования автопубликации в модалке.
+function igScheduleControlHtml(p){
+  const when = fmtDateTime(p.datetime);
+  if(p.status==="scheduled"){
+    return `<div class="pm-ig-sched scheduled">📅 Запланировано на <b>${escape(when)}</b> — улетит автоматически.
+      <button class="btn pm-ig-unschedule" data-id="${p.id}">Отменить план</button></div>`;
+  }
+  if(p.status==="error"){
+    return `<div class="pm-ig-sched error">⚠ Автопубликация не удалась${p.sched_error?`: ${escape(p.sched_error)}`:""}.
+      <button class="btn pm-ig-schedule" data-id="${p.id}">📅 Запланировать снова на ${escape(when)}</button></div>`;
+  }
+  if(p.status==="published") return "";
+  return `<button class="btn pm-ig-schedule" data-id="${p.id}">📅 Запланировать на ${escape(when)}</button>
+    <div class="field-hint" style="flex-basis:100%">Пост улетит сам в это время. Дату/время меняйте в карточке поста.</div>`;
+}
 
 async function downloadMediaZip(p, plat, btn){
   if(!isOnline()){ alert("Сначала подключите бэкенд в Настройках"); return; }
@@ -1658,7 +1757,7 @@ async function igPublishNow(id, btn){
     if(box){ box.style.display="block"; box.innerHTML = `<div class="pm-ig-err">⚠ Нет медиа для публикации.</div>`; }
     return;
   }
-  const caption = buildFullTextFor(p, "Instagram");
+  const { caption, options } = igCaptionAndExtras(p);
   const ri = rowIndexOf(p);
   igPublishInFlight = true;
   if(btn){ btn.disabled = true; }
@@ -1668,7 +1767,7 @@ async function igPublishNow(id, btn){
   }
   try{
     // Бэкенд сам определит по Drive MIME: фото, карусель или Reels.
-    const res = await api({ action:"publishInstagram", rowIndex: ri, caption: caption, mediaUrls: mediaUrls });
+    const res = await api({ action:"publishInstagram", rowIndex: ri, caption: caption, mediaUrls: mediaUrls, options: options });
     p.status = "published";
     if(res.permalink) p.ig_permalink = res.permalink;
     if(res.igPostId) p.ig_post_id = res.igPostId;
@@ -1685,6 +1784,43 @@ async function igPublishNow(id, btn){
     }
   }finally{
     igPublishInFlight = false;
+  }
+}
+/* ===== ПЛАНИРОВАНИЕ АВТОПУБЛИКАЦИИ ===== */
+async function igSchedulePost(id, btn){
+  const p = state.posts[id]; if(!p) return;
+  if(!isOnline()){ flash("Сначала подключите бэкенд в Настройках"); return; }
+  const ri = rowIndexOf(p); if(!ri){ flash("Пост ещё не создан в таблице"); return; }
+  if(btn) btn.disabled = true;
+  try{
+    // Замораживаем ровно то, что видно в превью (подпись, медиа, опции),
+    // чтобы пост улетел в этом виде даже если карточку потом поправят.
+    const { caption, options } = igCaptionAndExtras(p);
+    const c = contentForPlatform(p, "Instagram");
+    const mediaUrls = parseMediaList(c.media).map(it=>String(it.url).split("#")[0]).filter(Boolean);
+    const snapshot = { caption: caption, mediaUrls: mediaUrls, options: options };
+    const res = await api({ action:"schedulePost", rowIndex: ri, snapshot: snapshot });
+    p.status = "scheduled"; p.sched_error = ""; saveState();
+    flash(res.past ? "Запланировано — улетит в ближайшие минуты" : "Запланировано — улетит в назначенное время");
+    renderPublishModal(p, state.lastPublishPlatform || "Instagram"); render();
+  }catch(err){
+    if(btn) btn.disabled = false;
+    flash("Не удалось запланировать: " + (err && err.message || err));
+  }
+}
+async function igUnschedulePost(id, btn){
+  const p = state.posts[id]; if(!p) return;
+  if(!isOnline()){ flash("Сначала подключите бэкенд в Настройках"); return; }
+  const ri = rowIndexOf(p); if(!ri) return;
+  if(btn) btn.disabled = true;
+  try{
+    await api({ action:"unschedulePost", rowIndex: ri });
+    p.status = "ready"; saveState();
+    flash("План отменён — пост в «Готов»");
+    renderPublishModal(p, state.lastPublishPlatform || "Instagram"); render();
+  }catch(err){
+    if(btn) btn.disabled = false;
+    flash("Не удалось отменить план: " + (err && err.message || err));
   }
 }
 function openPublishModal(postId, platformHint){
@@ -1781,7 +1917,9 @@ function renderPublishModal(p, plat){
     <div class="pm-ig-publish-row">
       <button class="btn big primary pm-ig-publish" data-id="${p.id}">🚀 Опубликовать в Instagram сейчас</button>
       ${p.ig_permalink?`<a class="btn" href="${escape(p.ig_permalink)}" target="_blank" rel="noopener">↗ Открыть опубликованный пост</a>`:""}
+      ${(() => { const list = igOptionsSummary(p); return list.length ? `<div class="pm-ig-opts" style="flex-basis:100%">⚙️ Опции: ${list.join(" · ")}</div>` : ""; })()}
       <div class="field-hint">Автопубликация через Instagram API. Если что-то пойдёт не так — остаётся ручной режим ниже.</div>
+      <div class="pm-ig-sched-wrap" style="flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:center">${igScheduleControlHtml(p)}</div>
     </div>
     <div id="pmIgStatus" class="pm-ig-status" style="display:none"></div>
     ` : ""}
@@ -2107,7 +2245,7 @@ function renderAnya(){
           <span class="af-dt-cell" title="Дата публикации"><span class="dt-icon">📅</span><input type="date" data-field="datetime-date" data-id="${p.id}" value="${(p.datetime||"").substring(0,10)}"></span>
           <span class="af-dt-cell" title="Время публикации"><span class="dt-icon">⏰</span><input type="time" data-field="datetime-time" data-id="${p.id}" value="${(p.datetime||"").substring(11,16)}"></span>
           <select class="status-sel" data-id="${p.id}" data-status="${p.status||"draft"}" title="Статус поста">
-            ${VISIBLE_STATUSES.map(k=>`<option value="${k}" ${p.status===k?"selected":""}>${STATUS_LABEL[k]}</option>`).join("")}
+            ${statusOptionsHtml(p)}
           </select>
         </div>
       </div>
@@ -2142,6 +2280,8 @@ function renderAnya(){
           <input type="text" data-field="owner" data-id="${p.id}" value="${escape(p.owner||"")}" placeholder="Аня / Дмитрий">
         </div>
       </details>
+
+      ${postPlatforms(p).includes("Instagram") ? igOptionsBlock(p) : ""}
 
       ${overrideBlocks}
 
@@ -2606,7 +2746,8 @@ function renderHelp(){
         <li><strong>Превью картинок</strong> кликабельны: на весь экран, стрелками листаете.</li>
         <li><strong>Чек-лист</strong> в карточке свёрнут — раскройте перед публикацией, чтобы пройтись по пунктам.</li>
       </ul>
-    </div>`;
+    </div>
+    <p class="author-sign">Made by Dmitry Khinkis</p>`;
 }
 
 /* ===== EVENTS ===== */
@@ -2765,6 +2906,10 @@ document.addEventListener("click", e => {
     igPublishNow(t.dataset.id, t);
   } else if(t.matches(".pm-ig-cancel")){
     igPublishClearStatus();
+  } else if(t.matches(".pm-ig-schedule")){
+    igSchedulePost(t.dataset.id, t);
+  } else if(t.matches(".pm-ig-unschedule")){
+    igUnschedulePost(t.dataset.id, t);
   } else if(t.matches("[data-close-pm]")){
     closePublishModal();
   } else if(t.matches("[data-mark-published]")){
@@ -2821,6 +2966,15 @@ document.addEventListener("change", e => {
     saveState(); renderToday(); renderAll(); renderAnya();
     const ri = rowIndexOf(p); if(ri) pushField(ri, "checks", p.checks, 0);
     flash(t.checked ? "Хэштеги будут добавлены к посту" : "Хэштеги отключены для этого поста");
+  } else if(t.matches("[data-field-check]")){
+    // Чекбокс-опции IG: храним строкой ('true'/'' или своё data-on/data-off).
+    const p = state.posts[t.dataset.id]; if(!p) return;
+    const field = t.dataset.fieldCheck;
+    const onVal = t.dataset.on !== undefined ? t.dataset.on : "true";
+    const offVal = t.dataset.off !== undefined ? t.dataset.off : "";
+    p[field] = t.checked ? onVal : offVal;
+    saveState();
+    markPostDirty(p.id, field);
   } else if(t.matches("[data-platform-toggle]")){
     const p = state.posts[t.dataset.id]; if(!p) return;
     const plat = t.dataset.platformToggle;
