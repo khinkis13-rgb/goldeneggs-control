@@ -44,6 +44,12 @@ const ACCOUNTS_FIRST_DATA_ROW = 2;
 // (старый дашборд) маршрутизируются на него.
 const DEFAULT_ACCOUNT_ID = 'goldeneggs';
 
+// Команда-владелец новых аккаунтов по умолчанию. Должна СОВПАДАТЬ со значением
+// поля team в записи API-ключа этой команды в Script Property API_KEYS, иначе
+// grantFactoryContentAccess() не найдёт ключ. Используется в discoverAndRegister
+// (колонка «команда» реестра) и в grant... (поиск ключа по team).
+const FACTORY_TEAM = 'Фабрика контента';
+
 // Колонки листа «аккаунты». Имена и порядок зафиксированы — их использует
 // docs-агент и runbook онбординга, не переименовывать.
 const ACCOUNT_COLS = {
@@ -325,6 +331,229 @@ function readAccounts_() {
     });
   });
   return out;
+}
+
+// ===== Онбординг новых аккаунтов (хелпер, план 2026-06-26) =====
+//
+// Один System User токен публикует во много IG. Чтобы подключить новый аккаунт,
+// в Meta достаточно: IG → Business, привязать к FB-странице, добавить страницу+IG
+// в бизнес-портфель и назначить ассетами System User autopublisher (это РУЧНЫЕ
+// клики — их делает человек). После этого код сам находит новые аккаунты, пишет
+// их в реестр и выдаёт доступ команде. Порядок запуска из редактора Apps Script:
+//   1) discoverAccounts()            — сухой прогон, только лог, ничего не меняет;
+//   2) discoverAndRegisterAccounts() — пишет новые строки в лист «аккаунты»;
+//   3) grantFactoryContentAccess()   — выдаёт доступ Фабрике контента по API-ключу.
+
+/**
+ * Сканирует, что видит System User токен: все FB-страницы и привязанные к ним
+ * IG Business аккаунты. Возвращает массив { fb_page_id, page_name, ig_user_id,
+ * ig_username }. Страницы без IG Business дают пустые ig_*-поля. Токен наружу не
+ * выносится — запрос идёт из Apps Script. Обрабатывает пагинацию me/accounts.
+ */
+function scanMetaAccounts_() {
+  const token = PropertiesService.getScriptProperties().getProperty('IG_ACCESS_TOKEN');
+  if (!token) throw new Error('Нет IG_ACCESS_TOKEN в Script Properties.');
+  let url = GRAPH_BASE + GRAPH_VERSION + '/me/accounts'
+    + '?fields=' + encodeURIComponent('id,name,instagram_business_account{id,username}')
+    + '&limit=100&access_token=' + encodeURIComponent(token);
+  const out = [];
+  let guard = 0;
+  while (url && guard < 20) {
+    guard++;
+    const resp = UrlFetchApp.fetch(url, { method: 'get', muteHttpExceptions: true });
+    const code = resp.getResponseCode();
+    let data = {};
+    try { data = JSON.parse(resp.getContentText()); } catch (_) {}
+    if (code !== 200 || data.error) {
+      const e = data.error || {};
+      throw new Error('Graph me/accounts: ' + (e.message || ('HTTP ' + code)));
+    }
+    (data.data || []).forEach(function (p) {
+      const iba = p.instagram_business_account || null;
+      out.push({
+        fb_page_id:  String(p.id || ''),
+        page_name:   String(p.name || ''),
+        ig_user_id:  iba ? String(iba.id || '') : '',
+        ig_username: iba ? String(iba.username || '') : ''
+      });
+    });
+    // paging.next уже содержит access_token — используем ссылку как есть.
+    url = (data.paging && data.paging.next) ? data.paging.next : '';
+  }
+  return out;
+}
+
+/**
+ * Генерит технический account_id из IG username: латиница/цифры/подчёркивание,
+ * нижний регистр. Гарантирует уникальность против карты taken (мутирует её).
+ */
+function slugAccountId_(username, taken) {
+  let base = String(username || '').toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
+  if (!base) base = 'account';
+  let id = base, n = 2;
+  while (taken[id]) { id = base + '_' + n; n++; }
+  taken[id] = true;
+  return id;
+}
+
+/**
+ * СУХОЙ ПРОГОН (Run → discoverAccounts). Ничего не меняет. Показывает в логе, что
+ * видит System User токен, разбив на: НОВЫЕ (готовы к добавлению), УЖЕ В РЕЕСТРЕ
+ * и страницы БЕЗ привязанного IG (что доделать в Meta).
+ */
+function discoverAccounts() {
+  const found = scanMetaAccounts_();
+  const registry = readAccounts_();
+  const knownIg = {}, takenId = {};
+  registry.forEach(function (a) {
+    if (a.ig_user_id) knownIg[a.ig_user_id] = a;
+    takenId[a.account_id] = true;
+  });
+
+  const newOnes = [], linked = [], noIg = [];
+  found.forEach(function (p) {
+    if (!p.ig_user_id) { noIg.push(p); return; }
+    if (knownIg[p.ig_user_id]) { linked.push(p); return; }
+    newOnes.push({ p: p, account_id: slugAccountId_(p.ig_username, takenId) });
+  });
+
+  Logger.log('=== discoverAccounts: что видит System User токен ===');
+  Logger.log('Всего FB-страниц видно: %s', found.length);
+  Logger.log('');
+  Logger.log('— НОВЫЕ (готовы к добавлению в реестр): %s', newOnes.length);
+  newOnes.forEach(function (x) {
+    Logger.log('   + @%s | account_id: %s | ig_user_id: %s | fb_page_id: %s',
+      x.p.ig_username, x.account_id, x.p.ig_user_id, x.p.fb_page_id);
+  });
+  Logger.log('');
+  Logger.log('— УЖЕ В РЕЕСТРЕ: %s', linked.length);
+  linked.forEach(function (p) {
+    Logger.log('   = @%s | account_id: %s | ig_user_id: %s',
+      p.ig_username, knownIg[p.ig_user_id].account_id, p.ig_user_id);
+  });
+  Logger.log('');
+  Logger.log('— ⚠ Страницы БЕЗ привязанного IG Business: %s', noIg.length);
+  noIg.forEach(function (p) {
+    Logger.log('   ! «%s» (fb_page_id %s) — IG не привязан или не Business. Доделай в Meta.',
+      p.page_name, p.fb_page_id);
+  });
+  Logger.log('');
+  if (newOnes.length) {
+    Logger.log('➡️ Чтобы записать НОВЫЕ в лист «%s» — запусти discoverAndRegisterAccounts().', ACCOUNTS_SHEET);
+  } else {
+    Logger.log('➡️ Новых аккаунтов нет. Если ждёшь аккаунт, которого тут нет — он ещё не Business, '
+      + 'не привязан к FB-странице, или страница не назначена ассетом System User autopublisher.');
+  }
+  return { newCount: newOnes.length, linkedCount: linked.length, noIgCount: noIg.length };
+}
+
+/**
+ * ПИШЕТ (Run → discoverAndRegisterAccounts). Дописывает в лист «аккаунты» новые
+ * IG Business аккаунты, которых ещё нет в реестре. account_id — из username,
+ * label = @username, команда = FACTORY_TEAM, статус = active. Идемпотентно по
+ * ig_user_id: повторный запуск ничего не дублирует.
+ */
+function discoverAndRegisterAccounts() {
+  const found = scanMetaAccounts_();
+  const registry = readAccounts_();
+  const knownIg = {}, takenId = {};
+  registry.forEach(function (a) {
+    if (a.ig_user_id) knownIg[a.ig_user_id] = true;
+    takenId[a.account_id] = true;
+  });
+
+  const toAdd = [];
+  found.forEach(function (p) {
+    if (!p.ig_user_id || knownIg[p.ig_user_id]) return;
+    toAdd.push({ p: p, account_id: slugAccountId_(p.ig_username, takenId) });
+  });
+
+  if (!toAdd.length) {
+    const msg0 = 'Новых аккаунтов нет (всё, что видит токен, уже в реестре или без привязанного IG Business).';
+    try { SpreadsheetApp.getUi().alert(msg0); } catch (_) { Logger.log(msg0); }
+    return msg0;
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(ACCOUNTS_SHEET);
+  if (!sheet) { initAccountsSheet_(); sheet = ss.getSheetByName(ACCOUNTS_SHEET); }
+  const lastCol = Object.keys(ACCOUNT_COLS).length;
+  const rows = toAdd.map(function (x) {
+    const row = new Array(lastCol).fill('');
+    row[ACCOUNT_COLS.account_id.col - 1] = x.account_id;
+    row[ACCOUNT_COLS.label.col - 1]      = '@' + x.p.ig_username;
+    row[ACCOUNT_COLS.ig_user_id.col - 1] = x.p.ig_user_id;
+    row[ACCOUNT_COLS.fb_page_id.col - 1] = x.p.fb_page_id;
+    row[ACCOUNT_COLS.team.col - 1]       = FACTORY_TEAM;
+    row[ACCOUNT_COLS.status.col - 1]     = 'active';
+    return row;
+  });
+  const startRow = Math.max(sheet.getLastRow() + 1, ACCOUNTS_FIRST_DATA_ROW);
+  sheet.getRange(startRow, 1, rows.length, lastCol).setValues(rows);
+
+  const lines = toAdd.map(function (x) { return '• ' + x.account_id + ' (@' + x.p.ig_username + ')'; });
+  const msg = 'Добавлено в реестр «' + ACCOUNTS_SHEET + '»: ' + toAdd.length + '\n' + lines.join('\n')
+    + '\n\nДальше: запусти grantFactoryContentAccess() — выдать Фабрике контента доступ к этим аккаунтам.';
+  try { SpreadsheetApp.getUi().alert(msg); } catch (_) { Logger.log(msg); }
+  return msg;
+}
+
+/**
+ * ПИШЕТ В API_KEYS (Run → grantFactoryContentAccess). Синхронизирует доступ
+ * команды FACTORY_TEAM: добавляет все её активные account_id из реестра в поле
+ * accounts её ключа в Script Property API_KEYS. Аддитивно — ничего не удаляет,
+ * чужие ключи не трогает. Если ключа команды ещё нет — печатает готовую запись
+ * для вставки в API_KEYS (значение ключа придумать самому).
+ */
+function grantFactoryContentAccess() {
+  const props = PropertiesService.getScriptProperties();
+  const wanted = readAccounts_()
+    .filter(function (a) { return a['команда'] === FACTORY_TEAM && (!a['статус'] || a['статус'] === 'active'); })
+    .map(function (a) { return a.account_id; });
+  if (!wanted.length) {
+    Logger.log('В реестре нет активных аккаунтов с командой «%s». Сначала discoverAndRegisterAccounts().', FACTORY_TEAM);
+    return 'no accounts';
+  }
+
+  const keys = readApiKeys_();
+  const keyNames = Object.keys(keys).filter(function (k) { return keys[k] && keys[k].team === FACTORY_TEAM; });
+
+  if (!keyNames.length) {
+    const suggested = {}; suggested['key_factory_content'] = { team: FACTORY_TEAM, accounts: wanted };
+    Logger.log('⚠ В API_KEYS нет ключа с командой «%s».', FACTORY_TEAM);
+    Logger.log('Создай ключ: добавь в Script Property API_KEYS такую запись '
+      + '(замени key_factory_content на свой секретный ключ):');
+    Logger.log('%s', JSON.stringify(suggested));
+    Logger.log('Если API_KEYS уже есть — вставь эту пару ВНУТРЬ существующего JSON, не затирая другие ключи.');
+    return 'no key';
+  }
+
+  let changedAny = false;
+  keyNames.forEach(function (k) {
+    const entry = keys[k];
+    if (entry.accounts === '*') {
+      Logger.log('Ключ «%s» уже имеет доступ ко всем аккаунтам (accounts:"*") — менять нечего.', k);
+      return;
+    }
+    const have = Array.isArray(entry.accounts) ? entry.accounts.slice() : [];
+    const set = {}; have.forEach(function (id) { set[id] = true; });
+    const added = [];
+    wanted.forEach(function (id) { if (!set[id]) { have.push(id); set[id] = true; added.push(id); } });
+    if (added.length) {
+      entry.accounts = have; changedAny = true;
+      Logger.log('Ключ «%s»: добавлены аккаунты: %s', k, added.join(', '));
+    } else {
+      Logger.log('Ключ «%s»: все нужные аккаунты уже разрешены.', k);
+    }
+  });
+
+  if (changedAny) {
+    props.setProperty('API_KEYS', JSON.stringify(keys));
+    Logger.log('✅ API_KEYS обновлён. Фабрика контента публикует в: %s', wanted.join(', '));
+  } else {
+    Logger.log('Изменений нет — доступ уже актуален.');
+  }
+  return 'ok';
 }
 
 // ===== Мультитенантная авторизация (API-ключи команд, план 2026-06-18) =====
